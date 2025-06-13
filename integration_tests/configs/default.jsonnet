@@ -1,6 +1,6 @@
 {
   dotenv: '../../scripts/.env',
-  'mantra-test-1': {
+  'mantra_5887-1': {
     cmd: 'mantrachaind',
     'start-flags': '--trace',
     config: {
@@ -9,10 +9,7 @@
       },
     },
     'app-config': {
-      chain_id: 'mantra-test-1',
-      evm: {
-        'evm-chain-id': 5887,
-      },
+      chain_id: 'mantra_5887-1',
       'minimum-gas-prices': '0uom',
       'index-events': ['ethereum_tx.ethereumTxHash'],
       'iavl-lazy-loading': true,
