@@ -28,14 +28,14 @@
       },
     },
     validators: [{
-      coins: '1000000000000000000stake,10000000000000000000000uom',
+      coins: '1000000000000000000stake,100000000000uom',
       staked: '1000000000000000000stake',
       mnemonic: '${VALIDATOR1_MNEMONIC}',
       client_config: {
         'broadcast-mode': 'sync',
       },
     }, {
-      coins: '1000000000000000000stake,10000000000000000000000uom',
+      coins: '1000000000000000000stake,100000000000uom',
       staked: '1000000000000000000stake',
       mnemonic: '${VALIDATOR2_MNEMONIC}',
       client_config: {
@@ -44,7 +44,7 @@
     }],
     accounts: [{
       name: 'community',
-      coins: '10000000000000000000000uom',
+      coins: '100000000000uom',
       mnemonic: '${COMMUNITY_MNEMONIC}',
     }, {
       name: 'signer1',
@@ -56,15 +56,15 @@
       mnemonic: '${SIGNER2_MNEMONIC}',
     }, {
       name: 'reserve',
-      coins: '10000000000000000000000uom',
+      coins: '100000000000uom',
       vesting: '60s',
     }],
     genesis: {
       consensus: {
         params: {
           block: {
-            max_bytes: '1048576',
-            max_gas: '81500000',
+            max_bytes: '3000000',
+            max_gas: '300000000',
           },
         },
       },
@@ -76,7 +76,8 @@
         },
         feemarket: {
           params: {
-            base_fee: '100000000000',
+            base_fee: '0.010000000000000000',
+            min_gas_price: '0.010000000000000000',
             min_gas_multiplier: '0',
           },
         },
