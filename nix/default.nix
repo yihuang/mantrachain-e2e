@@ -7,9 +7,9 @@ import sources.nixpkgs {
   overlays = [
     (_: pkgs: {
       flake-compat = import sources.flake-compat;
+      mantrachaind = pkgs.callPackage sources.mantrachaind { };
     })
     (import "${sources.poetry2nix}/overlay.nix")
-    (import "${sources.gomod2nix}/overlay.nix")
     (_: pkgs: { test-env = pkgs.callPackage ./testenv.nix { }; })
   ];
   config = { };

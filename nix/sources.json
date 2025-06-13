@@ -11,18 +11,6 @@
         "url": "https://github.com/edolstra/flake-compat/archive/b4a34015c698c7793d592d66adbab377907a2be8.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
-    "gomod2nix": {
-        "branch": "master",
-        "description": "Convert applications using Go modules to Nix expressions",
-        "homepage": null,
-        "owner": "nix-community",
-        "repo": "gomod2nix",
-        "rev": "514283ec89c39ad0079ff2f3b1437404e4cba608",
-        "sha256": "tPsqU00FhgdFr0JiQUiBMgPVbl1jbPCY5gbFiJycL3I=",
-        "type": "tarball",
-        "url": "https://github.com/nix-community/gomod2nix/archive/514283ec89c39ad0079ff2f3b1437404e4cba608.tar.gz",
-        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
-    },
     "niv": {
         "branch": "master",
         "description": "Easy dependency management for Nix projects",
@@ -57,6 +45,18 @@
         "sha256": "0yfg51z8giwapc4kxxcrh47xr0zppwxiwaj7iyy6qsfd3a9649yz",
         "type": "tarball",
         "url": "https://github.com/nix-community/poetry2nix/archive/d90f9db68a4bda31c346be16dfd8d3263be4547e.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "mantrachaind": {
+        "branch": "master",
+        "description": "MANTRA is a purpose-built RWA Layer 1 Blockchain",
+        "homepage": "https://www.mantrachain.io",
+        "owner": "mantrachain",
+        "repo": "mantrachain",
+        "rev": "58242728fc5f687255322da814b8518c8eb0906b",
+        "sha256": "08cabjbbyh8j4sh8q3likb9jnkn0zy4vkabzchkvv8slnj9xn6w4",
+        "type": "tarball",
+        "url": "https://github.com/MANTRA-Chain/mantrachain/archive/58242728fc5f687255322da814b8518c8eb0906b.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
