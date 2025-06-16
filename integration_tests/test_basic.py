@@ -511,3 +511,14 @@ def test_failed_transfer_tx(mantra):
                 "returnValue": "0x",
                 "structLogs": [],
             }
+
+
+def test_multi_acc(mantra):
+    cli = mantra.cosmos_cli()
+    cli.make_multisig("multitest1", "signer1", "signer2")
+    multi_addr = cli.address("multitest1")
+    signer1 = cli.address("signer1")
+    cli.transfer(signer1, multi_addr, f"1{DEFAULT_DENOM}")
+    acc = cli.account(multi_addr)
+    res = cli.account_by_num(acc["account"]["value"]["account_number"])
+    assert res["account_address"] == multi_addr

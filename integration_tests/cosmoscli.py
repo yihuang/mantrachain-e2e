@@ -347,3 +347,26 @@ class CosmosCLI:
                 output="json",
             )
         ).get("send_enabled", [])
+
+    def make_multisig(self, name, signer1, signer2):
+        self.raw(
+            "keys",
+            "add",
+            name,
+            multisig=f"{signer1},{signer2}",
+            multisig_threshold="2",
+            home=self.data_dir,
+            keyring_backend="test",
+        )
+
+    def account_by_num(self, num):
+        return json.loads(
+            self.raw(
+                "q",
+                "auth",
+                "address-by-acc-num",
+                num,
+                output="json",
+                node=self.node_rpc,
+            )
+        )
