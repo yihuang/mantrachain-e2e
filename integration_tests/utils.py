@@ -5,10 +5,10 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-import eth_utils
-import rlp
 
 import bech32
+import eth_utils
+import rlp
 from dotenv import load_dotenv
 from eth_account import Account
 from eth_utils import to_checksum_address
@@ -186,6 +186,16 @@ def assert_balance(cli, w3, name):
     uom = cli.balance(addr)
     wei = w3.eth.get_balance(to_checksum_address(bech32_to_eth(addr)))
     assert uom == wei // WEI_PER_UOM
+    print(
+        f"{name} contains:",
+        uom,
+        "om:",
+        uom // UOM_PER_OM,
+        "wei:",
+        wei,
+        "ether:",
+        wei // WEI_PER_ETH,
+    )
     return uom
 
 
@@ -207,6 +217,7 @@ class ContractAddress(rlp.Serializable):
         ("from", rlp.sedes.Binary()),
         ("nonce", rlp.sedes.big_endian_int),
     ]
+
 
 def contract_address(addr, nonce):
     return eth_utils.to_checksum_address(
@@ -251,6 +262,7 @@ def build_batch_tx(w3, cli, txs, key=KEYS["validator"]):
         },
         "signatures": [],
     }, tx_hashes
+
 
 class Contract:
     def __init__(self, contract_path, private_key=KEYS["validator"], chain_id=5887):

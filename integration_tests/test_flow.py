@@ -38,12 +38,13 @@ def get_fee(events):
     return int("".join(takewhile(lambda s: s.isdigit() or s == ".", attrs["fee"])))
 
 
-def fund_recover(rpc, evm_rpc, tmp_path):
+def fund_recover(rpc, evm_rpc, chain_id, tmp_path):
     """
     transfer fund from community to recover cosmos addr
     """
     community = "community"
     addr_community = eth_to_bech32(ADDRS[community])
+    assert addr_community == "mantra1x7x9pkfxf33l87ftspk5aetwnkr0lvlvdy9gff"
     cli = connect_cli(tmp_path, rpc)
     w3 = connect_w3(evm_rpc)
     assert (
@@ -65,10 +66,10 @@ def fund_recover(rpc, evm_rpc, tmp_path):
         addr_recover,
         f"{amt}{DEFAULT_DENOM}",
         generate_only=True,
-        chain_id=CHAIN_ID,
+        chain_id=chain_id,
     )
     tx_json = cli.sign_tx_json(
-        tx, addr_community, home=tmp_path, node=rpc, chain_id=CHAIN_ID
+        tx, addr_community, home=tmp_path, node=rpc, chain_id=chain_id
     )
     rsp = cli.broadcast_tx_json(tx_json, home=tmp_path)
     assert rsp["code"] == 0, rsp["raw_log"]
@@ -78,7 +79,7 @@ def fund_recover(rpc, evm_rpc, tmp_path):
     assert assert_balance(cli, w3, addr_recover) == balance_recover + amt
 
 
-def run_flow(rpc, evm_rpc, tmp_path):
+def run_flow(rpc, evm_rpc, chain_id, tmp_path):
     community = "community"
     recover = "recover"
     amt = 4000
@@ -108,10 +109,10 @@ def run_flow(rpc, evm_rpc, tmp_path):
         addr_test1,
         f"{amt2}{DEFAULT_DENOM}",
         generate_only=True,
-        chain_id=CHAIN_ID,
+        chain_id=chain_id,
     )
     tx_json = cli.sign_tx_json(
-        tx, addr_recover, home=tmp_path, node=rpc, chain_id=CHAIN_ID
+        tx, addr_recover, home=tmp_path, node=rpc, chain_id=chain_id
     )
     rsp = cli.broadcast_tx_json(tx_json, home=tmp_path)
     assert rsp["code"] == 0, rsp["raw_log"]
@@ -169,9 +170,11 @@ def run_flow(rpc, evm_rpc, tmp_path):
 def test_flow(mantra, tmp_path):
     rpc = os.getenv("RPC")
     evm_rpc = os.getenv("EVM_RPC")
-    if not rpc or not evm_rpc:
+    chain_id = os.getenv("CHAIN_ID")
+    if not rpc or not evm_rpc or chain_id:
         port = mantra.base_port(0)
         rpc = f"http://127.0.0.1:{ports.rpc_port(port)}"
         evm_rpc = f"http://127.0.0.1:{ports.evmrpc_port(port)}"
-        fund_recover(rpc, evm_rpc, tmp_path)
-    run_flow(rpc, evm_rpc, tmp_path)
+        chain_id = CHAIN_ID
+        fund_recover(rpc, evm_rpc, chain_id, tmp_path)
+    run_flow(rpc, evm_rpc, chain_id, tmp_path)
