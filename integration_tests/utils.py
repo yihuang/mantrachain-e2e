@@ -412,3 +412,18 @@ def submit_any_proposal(mantra, tmp_path):
     grant_detail = cli.query_grant(granter_addr, grantee_addr)
     assert grant_detail["granter"] == granter_addr
     assert grant_detail["grantee"] == grantee_addr
+
+
+def submit_gov_proposal(mantra, tmp_path, **kwargs):
+    proposal = tmp_path / "proposal.json"
+    proposal_src = {
+        "title": "title",
+        "summary": "summary",
+        "deposit": f"1{DEFAULT_DENOM}",
+        **kwargs,
+    }
+    proposal.write_text(json.dumps(proposal_src))
+    rsp = mantra.cosmos_cli().submit_gov_proposal(proposal, from_="community")
+    assert rsp["code"] == 0, rsp["raw_log"]
+    approve_proposal(mantra, rsp["events"])
+    print("check params have been updated now")

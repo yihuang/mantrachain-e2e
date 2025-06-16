@@ -335,3 +335,15 @@ class CosmosCLI:
         if rsp["code"] == 0 and event_query_tx:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
+
+    def query_bank_send(self, *denoms):
+        return json.loads(
+            self.raw(
+                "q",
+                "bank",
+                "send-enabled",
+                *denoms,
+                home=self.data_dir,
+                output="json",
+            )
+        ).get("send_enabled", [])
