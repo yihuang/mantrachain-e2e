@@ -355,6 +355,7 @@ def test_contract(mantra):
 import json
 from .utils import build_batch_tx, contract_address
 
+
 def test_batch_tx(mantra):
     "send multiple eth txs in single cosmos tx"
     w3 = mantra.w3

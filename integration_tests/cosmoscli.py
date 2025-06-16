@@ -227,7 +227,6 @@ class CosmosCLI:
             )
         return json.loads(output)
 
-
     def build_evm_tx(self, raw_tx: str, **kwargs):
         return json.loads(
             self.raw(
@@ -241,3 +240,98 @@ class CosmosCLI:
                 **kwargs,
             )
         )
+
+    def get_default_kwargs(self):
+        return {
+            "gas_prices": DEFAULT_GAS_PRICE,
+            "gas": "auto",
+            "gas_adjustment": "1.5",
+        }
+
+    def submit_gov_proposal(self, proposal, **kwargs):
+        default_kwargs = self.get_default_kwargs()
+        kwargs.setdefault("broadcast_mode", "sync")
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "gov",
+                "submit-proposal",
+                proposal,
+                "-y",
+                home=self.data_dir,
+                node=self.node_rpc,
+                stderr=subprocess.DEVNULL,
+                **(default_kwargs | kwargs),
+            )
+        )
+        if rsp["code"] == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def query_grant(self, granter, grantee):
+        "query grant details by granter and grantee addresses"
+        res = json.loads(
+            self.raw(
+                "query",
+                "feegrant",
+                "grant",
+                granter,
+                grantee,
+                home=self.data_dir,
+                node=self.node_rpc,
+                output="json",
+            )
+        )
+        res = res.get("allowance") or res
+        return res
+
+    def query_proposal(self, proposal_id):
+        res = json.loads(
+            self.raw(
+                "query",
+                "gov",
+                "proposal",
+                proposal_id,
+                output="json",
+                node=self.node_rpc,
+            )
+        )
+        return res.get("proposal") or res
+
+    def staking_pool(self, bonded=True):
+        res = self.raw("query", "staking", "pool", output="json", node=self.node_rpc)
+        res = json.loads(res)
+        res = res.get("pool") or res
+        return int(res["bonded_tokens" if bonded else "not_bonded_tokens"])
+
+    def query_tally(self, proposal_id):
+        res = json.loads(
+            self.raw(
+                "query",
+                "gov",
+                "tally",
+                proposal_id,
+                output="json",
+                node=self.node_rpc,
+            )
+        )
+        return res.get("tally") or res
+
+    def gov_vote(self, voter, proposal_id, option, event_query_tx=True, **kwargs):
+        kwargs.setdefault("gas_prices", DEFAULT_GAS_PRICE)
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "gov",
+                "vote",
+                proposal_id,
+                option,
+                "-y",
+                from_=voter,
+                home=self.data_dir,
+                **kwargs,
+            )
+        )
+        if rsp["code"] == 0 and event_query_tx:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp

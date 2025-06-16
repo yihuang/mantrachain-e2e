@@ -78,6 +78,19 @@
             min_gas_multiplier: '0',
           },
         },
+        gov: {
+          params: {
+            expedited_voting_period: '1s',
+            voting_period: '10s',
+            max_deposit_period: '10s',
+            min_deposit: [
+              {
+                denom: 'uom',
+                amount: '1',
+              },
+            ],
+          },
+        },
       },
     },
   },

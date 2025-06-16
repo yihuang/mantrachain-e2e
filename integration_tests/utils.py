@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import socket
@@ -9,6 +10,7 @@ from pathlib import Path
 import bech32
 import eth_utils
 import rlp
+from dateutil.parser import isoparse
 from dotenv import load_dotenv
 from eth_account import Account
 from eth_utils import to_checksum_address
@@ -38,6 +40,7 @@ DEFAULT_FEE = int(DEFAULT_GAS_AMT * DEFAULT_GAS)
 WEI_PER_ETH = 10**18  # 10^18 wei == 1 ether
 UOM_PER_OM = 10**6  # 10^6 uom == 1 om
 WEI_PER_UOM = 10**12  # 10^12 wei == 1 uom
+ADDRESS_PREFIX = "mantra"
 
 TEST_CONTRACTS = {
     "TestERC20A": "TestERC20A.sol",
@@ -73,8 +76,29 @@ def wait_for_fn(name, fn, *, timeout=240, interval=1):
         raise TimeoutError(f"wait for {name} timeout")
 
 
+def wait_for_block_time(cli, t):
+    print("wait for block time", t)
+    while True:
+        now = isoparse(get_sync_info(cli.status())["latest_block_time"])
+        print("block time now:", now)
+        if now >= t:
+            break
+        time.sleep(0.5)
+
+
 def get_sync_info(s):
     return s.get("SyncInfo") or s.get("sync_info")
+
+
+def wait_for_new_blocks(cli, n, sleep=0.5, timeout=240):
+    cur_height = begin_height = int(get_sync_info(cli.status())["latest_block_height"])
+    start_time = time.time()
+    while cur_height - begin_height < n:
+        time.sleep(sleep)
+        cur_height = int(get_sync_info(cli.status())["latest_block_height"])
+        if time.time() - start_time > timeout:
+            raise TimeoutError(f"wait for block {begin_height + n} timeout")
+    return cur_height
 
 
 def wait_for_block(cli, height, timeout=240):
@@ -162,7 +186,7 @@ def deploy_contract(w3, jsonfile, args=(), key=KEYS["validator"], exp_gas_used=N
     return w3.eth.contract(address=address, abi=info["abi"])
 
 
-def eth_to_bech32(addr, prefix="mantra"):
+def eth_to_bech32(addr, prefix=ADDRESS_PREFIX):
     bz = bech32.convertbits(HexBytes(addr), 8, 5)
     return bech32.bech32_encode(prefix, bz)
 
@@ -174,6 +198,11 @@ def decode_bech32(addr):
 
 def bech32_to_eth(addr):
     return decode_bech32(addr).hex()
+
+
+def module_address(name):
+    data = hashlib.sha256(name.encode()).digest()[:20]
+    return to_checksum_address(decode_bech32(eth_to_bech32(data)).hex())
 
 
 def assert_balance(cli, w3, name):
@@ -262,6 +291,64 @@ def build_batch_tx(w3, cli, txs, key=KEYS["validator"]):
         },
         "signatures": [],
     }, tx_hashes
+
+
+def approve_proposal(n, events, event_query_tx=False):
+    cli = n.cosmos_cli()
+
+    # get proposal_id
+    ev = find_log_event_attrs(
+        events, "submit_proposal", lambda attrs: "proposal_id" in attrs
+    )
+    proposal_id = ev["proposal_id"]
+    for i in range(len(n.config["validators"])):
+        rsp = n.cosmos_cli(i).gov_vote("validator", proposal_id, "yes", event_query_tx)
+        assert rsp["code"] == 0, rsp["raw_log"]
+    wait_for_new_blocks(cli, 1)
+    res = cli.query_tally(proposal_id)
+    res = res.get("tally") or res
+    assert (
+        int(res["yes_count"]) == cli.staking_pool()
+    ), "all validators should have voted yes"
+    print("wait for proposal to be activated")
+    proposal = cli.query_proposal(proposal_id)
+    wait_for_block_time(cli, isoparse(proposal["voting_end_time"]))
+    proposal = cli.query_proposal(proposal_id)
+    assert proposal["status"] == "PROPOSAL_STATUS_PASSED", proposal
+
+
+def submit_any_proposal(mantra, tmp_path):
+    # governance module account as granter
+    cli = mantra.cosmos_cli()
+    granter_addr = eth_to_bech32(module_address("gov"))
+    grantee_addr = cli.address("signer1")
+
+    # this json can be obtained with `--generate-only` flag for respective cli calls
+    proposal_json = {
+        "messages": [
+            {
+                "@type": "/cosmos.feegrant.v1beta1.MsgGrantAllowance",
+                "granter": granter_addr,
+                "grantee": grantee_addr,
+                "allowance": {
+                    "@type": "/cosmos.feegrant.v1beta1.BasicAllowance",
+                    "spend_limit": [],
+                    "expiration": None,
+                },
+            }
+        ],
+        "deposit": f"1{DEFAULT_DENOM}",
+        "title": "title",
+        "summary": "summary",
+    }
+    proposal_file = tmp_path / "proposal.json"
+    proposal_file.write_text(json.dumps(proposal_json))
+    rsp = cli.submit_gov_proposal(proposal_file, from_="community")
+    assert rsp["code"] == 0, rsp["raw_log"]
+    approve_proposal(mantra, rsp["events"])
+    grant_detail = cli.query_grant(granter_addr, grantee_addr)
+    assert grant_detail["granter"] == granter_addr
+    assert grant_detail["grantee"] == grantee_addr
 
 
 class Contract:
