@@ -5,6 +5,7 @@ import socket
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import bech32
@@ -47,6 +48,7 @@ TEST_CONTRACTS = {
     "TestRevert": "TestRevert.sol",
     "Greeter": "Greeter.sol",
     "TestMessageCall": "TestMessageCall.sol",
+    "SelfDestruct": "SelfDestruct.sol",
 }
 
 
@@ -218,6 +220,15 @@ def sign_transaction(w3, tx, key=KEYS["validator"]):
     tx = fill_transaction_defaults(w3, tx)
     tx = fill_nonce(w3, tx)
     return acct.sign_transaction(tx)
+
+
+def send_raw_transactions(w3, raw_transactions):
+    with ThreadPoolExecutor(len(raw_transactions)) as exec:
+        tasks = [
+            exec.submit(w3.eth.send_raw_transaction, raw) for raw in raw_transactions
+        ]
+        sended_hash_set = {future.result() for future in as_completed(tasks)}
+    return sended_hash_set
 
 
 def send_transaction(w3, tx, key=KEYS["validator"]):
@@ -427,3 +438,10 @@ def submit_gov_proposal(mantra, tmp_path, **kwargs):
     assert rsp["code"] == 0, rsp["raw_log"]
     approve_proposal(mantra, rsp["events"])
     print("check params have been updated now")
+
+
+def derive_new_account(n=1):
+    # derive a new address
+    account_path = f"m/44'/60'/0'/0/{n}"
+    mnemonic = os.getenv("SIGNER1_MNEMONIC")
+    return Account.from_mnemonic(mnemonic, account_path=account_path)
