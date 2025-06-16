@@ -522,3 +522,14 @@ def test_multi_acc(mantra):
     acc = cli.account(multi_addr)
     res = cli.account_by_num(acc["account"]["value"]["account_number"])
     assert res["account_address"] == multi_addr
+
+
+def test_textual(mantra):
+    cli = mantra.cosmos_cli()
+    rsp = cli.transfer(
+        cli.address("validator"),
+        cli.address("signer2"),
+        f"1{DEFAULT_DENOM}",
+        sign_mode="textual",
+    )
+    assert rsp["code"] == 0, rsp["raw_log"]
