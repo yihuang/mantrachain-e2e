@@ -1,3 +1,4 @@
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import takewhile
@@ -16,6 +17,8 @@ from .utils import (
     Greeter,
     RevertTestContract,
     assert_contract,
+    build_batch_tx,
+    contract_address,
     deploy_contract,
     find_log_event_attrs,
     send_transaction,
@@ -350,10 +353,6 @@ def test_log0(mantra):
 
 def test_contract(mantra):
     assert_contract(mantra.cosmos_cli(), mantra.w3)
-
-
-import json
-from .utils import build_batch_tx, contract_address
 
 
 def test_batch_tx(mantra):

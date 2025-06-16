@@ -66,6 +66,69 @@ CONTRACTS = {
 }
 
 
+class Contract:
+    def __init__(self, contract_path, private_key=KEYS["validator"], chain_id=5887):
+        self.chain_id = chain_id
+        self.account = Account.from_key(private_key)
+        self.address = self.account.address
+        self.private_key = private_key
+        with open(contract_path) as f:
+            json_data = f.read()
+            contract_json = json.loads(json_data)
+        self.bytecode = contract_json["bytecode"]
+        self.abi = contract_json["abi"]
+        self.contract = None
+        self.w3 = None
+
+    def deploy(self, w3):
+        "Deploy contract on `w3` and return the receipt."
+        if self.contract is None:
+            self.w3 = w3
+            contract = self.w3.eth.contract(abi=self.abi, bytecode=self.bytecode)
+            transaction = contract.constructor().build_transaction(
+                {"chainId": self.chain_id, "from": self.address}
+            )
+            receipt = send_transaction(self.w3, transaction, self.private_key)
+            self.contract = self.w3.eth.contract(
+                address=receipt.contractAddress, abi=self.abi
+            )
+            return receipt
+        else:
+            return receipt
+
+
+class Greeter(Contract):
+    "Greeter contract."
+
+    def transfer(self, string):
+        "Call contract on `w3` and return the receipt."
+        transaction = self.contract.functions.setGreeting(string).build_transaction(
+            {
+                "chainId": self.chain_id,
+                "from": self.address,
+            }
+        )
+        receipt = send_transaction(self.w3, transaction, self.private_key)
+        assert string == self.contract.functions.greet().call()
+        return receipt
+
+
+class RevertTestContract(Contract):
+    "RevertTestContract contract."
+
+    def transfer(self, value):
+        "Call contract on `w3` and return the receipt."
+        transaction = self.contract.functions.transfer(value).build_transaction(
+            {
+                "chainId": self.chain_id,
+                "from": self.address,
+                "gas": 100000,  # skip estimateGas error
+            }
+        )
+        receipt = send_transaction(self.w3, transaction, self.private_key)
+        return receipt
+
+
 def wait_for_fn(name, fn, *, timeout=240, interval=1):
     for i in range(int(timeout / interval)):
         result = fn()
@@ -349,66 +412,3 @@ def submit_any_proposal(mantra, tmp_path):
     grant_detail = cli.query_grant(granter_addr, grantee_addr)
     assert grant_detail["granter"] == granter_addr
     assert grant_detail["grantee"] == grantee_addr
-
-
-class Contract:
-    def __init__(self, contract_path, private_key=KEYS["validator"], chain_id=5887):
-        self.chain_id = chain_id
-        self.account = Account.from_key(private_key)
-        self.address = self.account.address
-        self.private_key = private_key
-        with open(contract_path) as f:
-            json_data = f.read()
-            contract_json = json.loads(json_data)
-        self.bytecode = contract_json["bytecode"]
-        self.abi = contract_json["abi"]
-        self.contract = None
-        self.w3 = None
-
-    def deploy(self, w3):
-        "Deploy contract on `w3` and return the receipt."
-        if self.contract is None:
-            self.w3 = w3
-            contract = self.w3.eth.contract(abi=self.abi, bytecode=self.bytecode)
-            transaction = contract.constructor().build_transaction(
-                {"chainId": self.chain_id, "from": self.address}
-            )
-            receipt = send_transaction(self.w3, transaction, self.private_key)
-            self.contract = self.w3.eth.contract(
-                address=receipt.contractAddress, abi=self.abi
-            )
-            return receipt
-        else:
-            return receipt
-
-
-class Greeter(Contract):
-    "Greeter contract."
-
-    def transfer(self, string):
-        "Call contract on `w3` and return the receipt."
-        transaction = self.contract.functions.setGreeting(string).build_transaction(
-            {
-                "chainId": self.chain_id,
-                "from": self.address,
-            }
-        )
-        receipt = send_transaction(self.w3, transaction, self.private_key)
-        assert string == self.contract.functions.greet().call()
-        return receipt
-
-
-class RevertTestContract(Contract):
-    "RevertTestContract contract."
-
-    def transfer(self, value):
-        "Call contract on `w3` and return the receipt."
-        transaction = self.contract.functions.transfer(value).build_transaction(
-            {
-                "chainId": self.chain_id,
-                "from": self.address,
-                "gas": 100000,  # skip estimateGas error
-            }
-        )
-        receipt = send_transaction(self.w3, transaction, self.private_key)
-        return receipt
