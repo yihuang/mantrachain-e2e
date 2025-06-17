@@ -53,10 +53,10 @@
         "homepage": "https://www.mantrachain.io",
         "owner": "mantrachain",
         "repo": "mantrachain",
-        "rev": "58242728fc5f687255322da814b8518c8eb0906b",
-        "sha256": "08cabjbbyh8j4sh8q3likb9jnkn0zy4vkabzchkvv8slnj9xn6w4",
+        "rev": "3e255437a50c15ad6a39fbd97eb4095712153b5e",
+        "sha256": "08741lbbi03m016nsb8sx3a7f3dv9b2ivhbri7xnz1saq26gjl9h",
         "type": "tarball",
-        "url": "https://github.com/MANTRA-Chain/mantrachain/archive/58242728fc5f687255322da814b8518c8eb0906b.tar.gz",
+        "url": "https://github.com/mmsqe/mantrachain/archive/3e255437a50c15ad6a39fbd97eb4095712153b5e.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
