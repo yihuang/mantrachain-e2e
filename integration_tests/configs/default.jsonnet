@@ -62,7 +62,6 @@
           block: {
             max_bytes: '3000000',
             max_gas: '300000000',
-            // max_gas: '81500000',
           },
         },
       },
@@ -76,7 +75,6 @@
           params: {
             base_fee: '0.010000000000000000',
             min_gas_price: '0.010000000000000000',
-            // min_gas_price: '0',
             min_gas_multiplier: '0',
           },
         },

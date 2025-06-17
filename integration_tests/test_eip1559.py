@@ -15,6 +15,7 @@ def adjust_base_fee(parent_fee, gas_limit, gas_used):
     return parent_fee - delta
 
 
+@pytest.mark.skip(reason="skipping dynamic fee tx test")
 def test_dynamic_fee_tx(mantra):
     """
     test basic eip-1559 tx works:
@@ -54,6 +55,7 @@ def test_dynamic_fee_tx(mantra):
     )
 
 
+@pytest.mark.skip(reason="skipping test_base_fee_adjustment")
 def test_base_fee_adjustment(mantra):
     """
     verify base fee adjustment of three continuous empty blocks

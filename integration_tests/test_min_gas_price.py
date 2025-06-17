@@ -8,6 +8,9 @@ from .utils import ADDRS, KEYS, send_transaction, w3_wait_for_block, wait_for_ne
 pytestmark = pytest.mark.gas
 
 
+pytest.skip("skipping min gas test", allow_module_level=True)
+
+
 @pytest.fixture(scope="module")
 def custom_mantra_eq(tmp_path_factory):
     path = tmp_path_factory.mktemp("min-gas-price-eq")

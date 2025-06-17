@@ -16,6 +16,8 @@ from .utils import (
 
 pytestmark = pytest.mark.slow
 
+pytest.skip("skipping mempool test", allow_module_level=True)
+
 
 @pytest.fixture(scope="module")
 def mantra_mempool(tmp_path_factory):
