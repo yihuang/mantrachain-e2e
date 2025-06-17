@@ -1,7 +1,7 @@
 local config = import 'default.jsonnet';
 
 config {
-  'mantra_5887-1'+: {
+  'mantra-canary-net-1'+: {
     validators: [validator {
       gas_prices: '10000000000000uom',
     } for validator in super.validators],

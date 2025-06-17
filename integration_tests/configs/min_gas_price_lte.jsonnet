@@ -1,7 +1,7 @@
 local config = import 'min_gas_price.jsonnet';
 
 config {
-  'mantra_5887-1'+: {
+  'mantra-canary-net-1'+: {
     genesis+: {
       app_state+: {
         feemarket+: {
