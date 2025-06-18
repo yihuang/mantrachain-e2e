@@ -7,8 +7,8 @@ export TMPDIR=/tmp
 
 echo "build test contracts"
 cd ../integration_tests/contracts
-# HUSKY_SKIP_INSTALL=1 npm install
-# npm run typechain
+HUSKY_SKIP_INSTALL=1 npm install
+npm run typechain
 cd ..
 
 TESTS_TO_RUN="${TESTS_TO_RUN:-all}"
