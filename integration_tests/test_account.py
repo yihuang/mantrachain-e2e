@@ -3,7 +3,14 @@ import pytest
 from .utils import ADDRS, derive_new_account, w3_wait_for_new_blocks
 
 
+@pytest.mark.connect
+def test_get_transaction_count(connect_mantra):
+    get_transaction_count(connect_mantra)
+
 def test_get_transaction_count(mantra):
+    get_transaction_count(mantra)
+
+def get_transaction_count(mantra):
     w3 = mantra.w3
     blk = hex(w3.eth.block_number)
     sender = ADDRS["validator"]
@@ -24,8 +31,14 @@ def test_get_transaction_count(mantra):
     assert n0 == n1
     assert n0 == n2
 
+@pytest.mark.connect
+def test_query_future_blk(connect_mantra):
+    query_future_blk(connect_mantra)
 
-def test_query_future_blk(mantra):
+def test_get_transaction_count(mantra):
+    query_future_blk(mantra)
+
+def query_future_blk(mantra):
     w3 = mantra.w3
     acc = derive_new_account(2).address
     current = w3.eth.block_number
