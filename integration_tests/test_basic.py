@@ -355,9 +355,8 @@ def test_contract(mantra):
     assert_contract(mantra.cosmos_cli(), mantra.w3)
 
 
-@pytest.mark.skip(reason="skipping batch tx test")
 def test_batch_tx(mantra):
-    "send multiple eth txs in single cosmos tx"
+    "send multiple eth txs in single cosmos tx should be disabled"
     w3 = mantra.w3
     cli = mantra.cosmos_cli()
     sender = ADDRS["validator"]
@@ -380,54 +379,8 @@ def test_batch_tx(mantra):
         w3, cli, [deploy_tx, transfer_tx1, transfer_tx2]
     )
     rsp = cli.broadcast_tx_json(cosmos_tx)
-    assert rsp["code"] == 0, rsp["raw_log"]
-
-    receipts = [w3.eth.wait_for_transaction_receipt(h) for h in tx_hashes]
-
-    assert 2000 == contract.caller.balanceOf(recipient)
-
-    # check logs
-    assert receipts[0].contractAddress == contract.address
-
-    assert receipts[0].transactionIndex == 0
-    assert receipts[1].transactionIndex == 1
-    assert receipts[2].transactionIndex == 2
-
-    assert receipts[0].logs[0].logIndex == 0
-    assert receipts[1].logs[0].logIndex == 1
-    assert receipts[2].logs[0].logIndex == 2
-
-    assert receipts[0].cumulativeGasUsed == receipts[0].gasUsed
-    assert receipts[1].cumulativeGasUsed == receipts[0].gasUsed + receipts[1].gasUsed
-    assert (
-        receipts[2].cumulativeGasUsed
-        == receipts[0].gasUsed + receipts[1].gasUsed + receipts[2].gasUsed
-    )
-
-    # check nonce
-    assert w3.eth.get_transaction_count(sender) == nonce + 3
-
-    # check traceTransaction
-    rsps = [
-        w3.provider.make_request("debug_traceTransaction", [h.hex()])["result"]
-        for h in tx_hashes
-    ]
-
-    for rsp, receipt in zip(rsps, receipts):
-        assert not rsp["failed"]
-        assert receipt.gasUsed == rsp["gas"]
-
-    # check get_transaction_by_block
-    txs = [
-        w3.eth.get_transaction_by_block(receipts[0].blockNumber, i) for i in range(3)
-    ]
-    for tx, h in zip(txs, tx_hashes):
-        assert tx.hash == h
-
-    # check getBlock
-    txs = w3.eth.get_block(receipts[0].blockNumber, True).transactions
-    for i in range(3):
-        assert txs[i].transactionIndex == i
+    assert rsp["code"] >= 0
+    assert f"expected only one EVM message, got {len(tx_hashes)}" in rsp["raw_log"]
 
 
 def test_refund_unused_gas_when_contract_tx_reverted(mantra):
