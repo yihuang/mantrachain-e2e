@@ -46,17 +46,5 @@
         "type": "tarball",
         "url": "https://github.com/nix-community/poetry2nix/archive/d90f9db68a4bda31c346be16dfd8d3263be4547e.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
-    },
-    "mantrachaind": {
-        "branch": "master",
-        "description": "MANTRA is a purpose-built RWA Layer 1 Blockchain",
-        "homepage": "https://www.mantrachain.io",
-        "owner": "mantrachain",
-        "repo": "mantrachain",
-        "rev": "3e255437a50c15ad6a39fbd97eb4095712153b5e",
-        "sha256": "08741lbbi03m016nsb8sx3a7f3dv9b2ivhbri7xnz1saq26gjl9h",
-        "type": "tarball",
-        "url": "https://github.com/mmsqe/mantrachain/archive/3e255437a50c15ad6a39fbd97eb4095712153b5e.tar.gz",
-        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
