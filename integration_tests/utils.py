@@ -20,7 +20,6 @@ from hexbytes import HexBytes
 from web3._utils.transactions import fill_nonce, fill_transaction_defaults
 
 load_dotenv(Path(__file__).parent.parent / "scripts/.env")
-load_dotenv(Path(__file__).parent.parent / "scripts/.env")
 Account.enable_unaudited_hdwallet_features()
 ACCOUNTS = {
     "validator": Account.from_mnemonic(os.getenv("VALIDATOR1_MNEMONIC")),

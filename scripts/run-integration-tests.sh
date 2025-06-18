@@ -7,8 +7,8 @@ export TMPDIR=/tmp
 
 echo "build test contracts"
 cd ../integration_tests/contracts
-HUSKY_SKIP_INSTALL=1 npm install
-npm run typechain
+# HUSKY_SKIP_INSTALL=1 npm install
+# npm run typechain
 cd ..
 
 TESTS_TO_RUN="${TESTS_TO_RUN:-all}"
@@ -17,10 +17,15 @@ if [[ "$TESTS_TO_RUN" == "all" ]]; then
   echo "run all tests"
   pytest -v -s -m unmarked
 else
+  if [ -f ../scripts/network.env ]; then
+    echo "Loading environment variables from network.env"
+    set -a
+    source ../scripts/network.env
+    set +a
+  else
+    echo "ERROR: network.env not found. Please create it from scripts/network.env.template." >&2
+    exit 1
+  fi
   echo "run tests matching $TESTS_TO_RUN"
-  export RPC="https://rpc.archive.canary.mantrachain.dev"
-  export EVM_RPC="https://evm.archive.canary.mantrachain.dev"
-  export EVM_RPC_WS="https://evm.archive.canary.mantrachain.dev/ws"
-  export CHAIN_ID="mantra-canary-net-1"
   pytest -vv -s -m connect
 fi
