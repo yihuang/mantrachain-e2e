@@ -49,6 +49,8 @@ TEST_CONTRACTS = {
     "Greeter": "Greeter.sol",
     "TestMessageCall": "TestMessageCall.sol",
     "SelfDestruct": "SelfDestruct.sol",
+    "TestBlockTxProperties": "TestBlockTxProperties.sol",
+    "Random": "Random.sol",
 }
 
 
@@ -319,6 +321,17 @@ def deploy_contract(w3, jsonfile, args=(), key=KEYS["validator"], exp_gas_used=N
         ), f"exp {exp_gas_used}, got {txreceipt.gasUsed}"
     address = txreceipt.contractAddress
     return w3.eth.contract(address=address, abi=info["abi"])
+
+
+def create_contract_transaction(w3, jsonfile, args=(), key=KEYS["validator"]):
+    """
+    create contract transaction
+    """
+    acct = Account.from_key(key)
+    info = json.loads(jsonfile.read_text())
+    contract = w3.eth.contract(abi=info["abi"], bytecode=info["bytecode"])
+    tx = contract.constructor(*args).build_transaction({"from": acct.address})
+    return tx
 
 
 def eth_to_bech32(addr, prefix=ADDRESS_PREFIX):
