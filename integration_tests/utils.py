@@ -7,6 +7,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from urllib.parse import urlparse
 
 import bech32
 import eth_utils
@@ -203,6 +204,25 @@ def wait_for_port(port, host="127.0.0.1", timeout=40.0):
     while True:
         try:
             with socket.create_connection((host, port), timeout=timeout):
+                break
+        except OSError as ex:
+            time.sleep(0.1)
+            if time.perf_counter() - start_time >= timeout:
+                raise TimeoutError(
+                    "Waited too long for the port {} on host {} to start accepting "
+                    "connections.".format(port, host)
+                ) from ex
+
+
+def wait_for_url(url, timeout=40.0):
+    print("wait for url", url, "to be available")
+    start_time = time.perf_counter()
+    while True:
+        try:
+            parsed = urlparse(url)
+            host = parsed.hostname
+            port = parsed.port
+            with socket.create_connection((host, int(port or 80)), timeout=timeout):
                 break
         except OSError as ex:
             time.sleep(0.1)

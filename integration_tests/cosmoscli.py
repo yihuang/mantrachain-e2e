@@ -25,6 +25,7 @@ class CosmosCLI:
         data_dir,
         node_rpc,
         cmd,
+        chain_id=None,
     ):
         self.data_dir = data_dir
         genesis_path = self.data_dir / "config" / "genesis.json"
@@ -33,7 +34,7 @@ class CosmosCLI:
             self.chain_id = self._genesis["chain_id"]
         else:
             self._genesis = {}
-            self.chain_id = None
+            self.chain_id = chain_id
         self.node_rpc = node_rpc
         self.raw = ChainCommand(cmd)
         self.output = None

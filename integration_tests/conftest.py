@@ -1,10 +1,11 @@
 import pytest
 
-from .network import setup_mantra
+from .network import connect_custom_mantra, setup_mantra
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "unmarked: fallback mark for unmarked tests")
+    config.addinivalue_line("markers", "connect: marks connect related tests")
 
 
 def pytest_collection_modifyitems(items, config):
@@ -44,3 +45,8 @@ def suspend_capture(pytestconfig):
 def mantra(request, tmp_path_factory):
     path = tmp_path_factory.mktemp("mantra")
     yield from setup_mantra(path, 26650)
+
+
+@pytest.fixture(scope="session", params=[True])
+def connect_mantra():
+    yield from connect_custom_mantra()

@@ -15,8 +15,12 @@ TESTS_TO_RUN="${TESTS_TO_RUN:-all}"
 
 if [[ "$TESTS_TO_RUN" == "all" ]]; then
   echo "run all tests"
-  pytest -vv -s
+  pytest -v -s -m unmarked
 else
   echo "run tests matching $TESTS_TO_RUN"
-  pytest -vv -s -m "$TESTS_TO_RUN"
+  export RPC="https://rpc.archive.canary.mantrachain.dev"
+  export EVM_RPC="https://evm.archive.canary.mantrachain.dev"
+  export EVM_RPC_WS="https://evm.archive.canary.mantrachain.dev/ws"
+  export CHAIN_ID="mantra-canary-net-1"
+  pytest -vv -s -m connect
 fi

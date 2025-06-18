@@ -8,7 +8,7 @@ import web3
 from pystarport import cluster, ports
 
 from .cosmoscli import CosmosCLI
-from .utils import supervisorctl, wait_for_block, wait_for_port
+from .utils import supervisorctl, wait_for_block, wait_for_port, wait_for_url
 
 
 class Mantra:
@@ -62,6 +62,36 @@ class Mantra:
         return supervisorctl(self.base_dir / "../tasks.ini", *args)
 
 
+class ConnectMantra:
+    def __init__(self, rpc, evm_rpc, evm_rpc_ws, chain_id, chain_binary="mantrachaind"):
+        self._w3 = None
+        self.rpc = rpc
+        self.evm_rpc = evm_rpc
+        self.evm_rpc_ws = evm_rpc_ws
+        self.chain_id = chain_id
+        self.chain_binary = chain_binary
+        self._use_websockets = False
+
+    @property
+    def w3(self):
+        if self._w3 is None:
+            self._w3 = self.node_w3()
+        return self._w3
+
+    def node_w3(self):
+        if self._use_websockets:
+            return web3.Web3(web3.providers.WebsocketProvider(self.evm_rpc_ws))
+        else:
+            return web3.Web3(web3.providers.HTTPProvider(self.evm_rpc))
+
+    def cosmos_cli(self, home) -> CosmosCLI:
+        return CosmosCLI(home, self.rpc, self.chain_binary, self.chain_id)
+
+    def use_websocket(self, use=True):
+        self._w3 = None
+        self._use_websockets = use
+
+
 def setup_mantra(path, base_port):
     cfg = Path(__file__).parent / ("configs/default.jsonnet")
     yield from setup_custom_mantra(path, base_port, cfg)
@@ -102,10 +132,22 @@ def setup_custom_mantra(
     try:
         if wait_port:
             wait_for_port(ports.rpc_port(base_port))
-        c = Mantra(path / "mantra-canary-net-1", chain_binary=chain_binary or "mantrachaind")
+        c = Mantra(
+            path / "mantra-canary-net-1", chain_binary=chain_binary or "mantrachaind"
+        )
         wait_for_block(c.cosmos_cli(), 1)
         yield c
     finally:
         os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
         # proc.terminate()
         proc.wait()
+
+
+def connect_custom_mantra():
+    rpc = os.getenv("RPC", "http://127.0.0.1:26657")
+    evm_rpc = os.getenv("EVM_RPC", "http://127.0.0.1:26651")
+    evm_rpc_ws = os.getenv("EVM_RPC_WS", "ws://127.0.0.1:26652")
+    chain_id = os.getenv("CHAIN_ID", "mantra-canary-net-1")
+    wait_for_url(rpc)
+    wait_for_url(evm_rpc)
+    yield ConnectMantra(rpc, evm_rpc, evm_rpc_ws, chain_id)

@@ -1,15 +1,12 @@
 import os
-import shutil
 from itertools import takewhile
 
-import web3
+import pytest
 from eth_account import Account
-from pystarport import ports
 
-from .network import CosmosCLI
+from .network import ConnectMantra, Mantra
 from .utils import (
     ADDRS,
-    CHAIN_ID,
     DEFAULT_DENOM,
     DEFAULT_FEE,
     WEI_PER_UOM,
@@ -20,33 +17,20 @@ from .utils import (
 )
 
 
-def connect_cli(tmp_path, rpc, chain_binary="mantrachaind"):
-    if tmp_path.exists():
-        shutil.rmtree(tmp_path)
-    cli = CosmosCLI(tmp_path, rpc, chain_binary)
-    return cli
-
-
-def connect_w3(rpc):
-    w3 = web3.Web3(web3.providers.HTTPProvider(rpc))
-    assert w3.eth.chain_id == 5887
-    return w3
-
-
 def get_fee(events):
     attrs = find_log_event_attrs(events, "tx", lambda attrs: "fee" in attrs)
     return int("".join(takewhile(lambda s: s.isdigit() or s == ".", attrs["fee"])))
 
 
-def fund_recover(rpc, evm_rpc, chain_id, tmp_path):
+def fund_recover(m: Mantra, tmp_path):
     """
     transfer fund from community to recover cosmos addr
     """
     community = "community"
     addr_community = eth_to_bech32(ADDRS[community])
     assert addr_community == "mantra1x7x9pkfxf33l87ftspk5aetwnkr0lvlvdy9gff"
-    cli = connect_cli(tmp_path, rpc)
-    w3 = connect_w3(evm_rpc)
+    cli = m.cosmos_cli()
+    w3 = m.w3
     assert (
         cli.create_account(
             community,
@@ -61,6 +45,7 @@ def fund_recover(rpc, evm_rpc, chain_id, tmp_path):
     amt = 4000
     if balance_recover >= amt:
         return
+    chain_id = cli.chain_id
     tx = cli.transfer(
         addr_community,
         addr_recover,
@@ -69,7 +54,7 @@ def fund_recover(rpc, evm_rpc, chain_id, tmp_path):
         chain_id=chain_id,
     )
     tx_json = cli.sign_tx_json(
-        tx, addr_community, home=tmp_path, node=rpc, chain_id=chain_id
+        tx, addr_community, home=tmp_path, node=m.node_rpc(0), chain_id=chain_id
     )
     rsp = cli.broadcast_tx_json(tx_json, home=tmp_path)
     assert rsp["code"] == 0, rsp["raw_log"]
@@ -79,14 +64,14 @@ def fund_recover(rpc, evm_rpc, chain_id, tmp_path):
     assert assert_balance(cli, w3, addr_recover) == balance_recover + amt
 
 
-def run_flow(rpc, evm_rpc, chain_id, tmp_path):
+def run_flow(m: ConnectMantra, tmp_path):
     community = "community"
     recover = "recover"
     amt = 4000
     addr_recover = "mantra1h5tsd8wjefus259xmff367ltg0rpf54a9ktpza"
 
     # recover cosmos addr outside from node
-    cli = connect_cli(tmp_path, rpc)
+    cli = m.cosmos_cli(tmp_path)
     assert (
         cli.create_account(
             recover,
@@ -97,13 +82,14 @@ def run_flow(rpc, evm_rpc, chain_id, tmp_path):
         )["address"]
         == addr_recover
     )
-    w3 = connect_w3(evm_rpc)
+    w3 = m.w3
     assert assert_balance(cli, w3, recover) >= amt
 
     # fund test1 from all recover's balance via cosmos tx
     acc_test1 = Account.from_mnemonic(os.getenv("TESTER1_MNEMONIC"))
     addr_test1 = eth_to_bech32(acc_test1.address)
     amt2 = amt - DEFAULT_FEE
+    chain_id = cli.chain_id
     tx = cli.transfer(
         addr_recover,
         addr_test1,
@@ -112,7 +98,7 @@ def run_flow(rpc, evm_rpc, chain_id, tmp_path):
         chain_id=chain_id,
     )
     tx_json = cli.sign_tx_json(
-        tx, addr_recover, home=tmp_path, node=rpc, chain_id=chain_id
+        tx, addr_recover, home=tmp_path, node=m.rpc, chain_id=chain_id
     )
     rsp = cli.broadcast_tx_json(tx_json, home=tmp_path)
     assert rsp["code"] == 0, rsp["raw_log"]
@@ -167,14 +153,11 @@ def run_flow(rpc, evm_rpc, chain_id, tmp_path):
     assert assert_balance(cli, w3, eth_to_bech32(ADDRS[community])) > 0
 
 
-def test_flow(mantra, tmp_path):
-    rpc = os.getenv("RPC")
-    evm_rpc = os.getenv("EVM_RPC")
-    chain_id = os.getenv("CHAIN_ID")
-    if not rpc or not evm_rpc or chain_id:
-        port = mantra.base_port(0)
-        rpc = f"http://127.0.0.1:{ports.rpc_port(port)}"
-        evm_rpc = f"http://127.0.0.1:{ports.evmrpc_port(port)}"
-        chain_id = CHAIN_ID
-        fund_recover(rpc, evm_rpc, chain_id, tmp_path)
-    run_flow(rpc, evm_rpc, chain_id, tmp_path)
+@pytest.mark.connect
+def test_connect_flow(connect_mantra, tmp_path):
+    run_flow(connect_mantra, tmp_path)
+
+
+def test_flow(mantra, connect_mantra, tmp_path):
+    fund_recover(mantra, tmp_path)
+    run_flow(connect_mantra, tmp_path)

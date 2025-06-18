@@ -5,9 +5,6 @@ import pytest
 from .network import setup_custom_mantra
 from .utils import ADDRS, KEYS, send_transaction, w3_wait_for_block, wait_for_new_blocks
 
-pytestmark = pytest.mark.gas
-
-
 pytest.skip("skipping min gas test", allow_module_level=True)
 
 
