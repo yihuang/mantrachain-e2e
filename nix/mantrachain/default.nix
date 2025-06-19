@@ -12,7 +12,7 @@
   pkgsStatic,
 }:
 let
-  version = "v5.0.0";
+  version = "v5.0.0-rc2";
   pname = "mantrachain";
   wasmvmVersion = "v2.2.4";
 
@@ -33,7 +33,7 @@ let
     };
     linux-aarch64 = fetchurl {
       url = "https://github.com/CosmWasm/wasmvm/releases/download/${wasmvmVersion}/libwasmvm_muslc.aarch64.a";
-      sha256 = "sha256-cMmJaE0rSMoXu9VbtpS7sTbXXDk8Bn7zvbyjHSsjtXg=";
+      sha256 = "sha256-J/sTgh28UZEZ9PmMMKQssyQpsRGw/ciDaGw0pBd3SI8=";
     };
   };
 
