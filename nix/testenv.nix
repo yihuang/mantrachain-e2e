@@ -25,6 +25,7 @@ poetry2nix.mkPoetryEnv {
         flake8-isort = [ "hatchling" ];
         pytest-github-actions-annotate-failures = [ "setuptools" ];
         pyunormalize = [ "setuptools" ];
+        typing-inspection = [ "hatchling" ];
         eth-bloom = [ "setuptools" ];
       };
     in
