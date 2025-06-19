@@ -9,7 +9,7 @@ default:
 
 # Builds the whole project.
 build:
-  cargo build
+  cargo build --release --lib --target wasm32-unknown-unknown
 
 # Build all schemas
 schemas:
@@ -60,7 +60,39 @@ watch-test:
 
 # Compiles and optimizes the contracts.
 optimize:
-  scripts/build_release.sh
+  #!/usr/bin/env sh
+  if ! command -v wasm-opt &> /dev/null
+  then
+      echo "wasm-opt could not be found, installing..."
+      cargo install wasm-opt --locked
+  fi
+  if [ ! -d artifacts ]; then
+    mkdir -p artifacts
+  fi
+
+  # Reference: https://github.com/CosmWasm/optimizer/blob/main/optimize.sh
+  echo "Optimizing artifacts ..."
+  for WASM in target/wasm32-unknown-unknown/release/*.wasm; do
+    [ -e "$WASM" ] || continue # https://superuser.com/a/519493
+
+    echo "Found $WASM"
+    OUT_FILENAME=$(basename "$WASM")
+    echo "Optimizing $OUT_FILENAME ..."
+    wasm-opt -Os "$WASM" -o "artifacts/$OUT_FILENAME"
+  done
+
+  echo "Post-processing artifacts..."
+  (
+    cd artifacts
+
+    if test -n "$(find . -maxdepth 1 -name '*.wasm' -print -quit)"; then
+      sha256sum -- *.wasm | tee checksums.txt
+    else
+      echo "Warn: No .wasm file built. Check your build configuration in Cargo.toml."
+    fi
+  )
+
+  echo "Done."
 
 # Prints the artifacts versions on the current commit.
 get-artifacts-versions:
