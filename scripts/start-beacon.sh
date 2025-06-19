@@ -8,7 +8,13 @@ if [ -z $DATA ]; then
 fi
 shift
 
-beacon-chain \
+BEACON_BIN=$(ls ../scripts/dist/beacon-chain-v6.0.4-* 2>/dev/null | head -n 1)
+if [ ! -f "$BEACON_BIN" ]; then
+    echo "beacon-chain binary not found!"
+    exit 1
+fi
+
+$BEACON_BIN \
 --datadir $DATA \
 --genesis-state=genesis.ssz \
 --chain-config-file=config.yaml \

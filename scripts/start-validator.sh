@@ -8,7 +8,13 @@ if [ -z $DATA ]; then
 fi
 shift
 
-validator \
+VALIDATOR_BIN=$(ls ../scripts/dist/validator-v6.0.4-* 2>/dev/null | head -n 1)
+if [ ! -f "$VALIDATOR_BIN" ]; then
+    echo "validator binary not found!"
+    exit 1
+fi
+
+$VALIDATOR_BIN \
 --datadir $DATA \
 --accept-terms-of-use \
 --interop-num-validators=1 \
