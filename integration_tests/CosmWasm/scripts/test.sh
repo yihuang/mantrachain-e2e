@@ -99,6 +99,7 @@ for CONTRACT in "$CONTRACT_DIR"/*.wasm; do
 
 	sleep 10
 
+  echo -e "\nQuerying contract: $CONTRACT"
 	code_id=$($BINARY q tx $tx_hash --node $RPC -o json | jq -r '.events[] | select(.type == "store_code").attributes[] | select(.key == "code_id").value')
 	if [ -z "$code_id" ] || [ "$code_id" == "null" ]; then
 		echo "No code_id found in transaction $tx_hash."
