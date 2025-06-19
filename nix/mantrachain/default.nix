@@ -14,7 +14,7 @@
 let
   version = "v5.0.0";
   pname = "mantrachain";
-  wasmvmVersion = "v3.0.0-ibc2.1";
+  wasmvmVersion = "v2.2.4";
 
   # Use static packages for Linux to ensure musl compatibility
   buildPackages = if stdenv.isLinux then pkgsStatic else { inherit stdenv buildGo123Module; };
@@ -25,15 +25,15 @@ let
   wasmvmLibs = {
     darwin = fetchurl {
       url = "https://github.com/CosmWasm/wasmvm/releases/download/${wasmvmVersion}/libwasmvmstatic_darwin.a";
-      sha256 = "sha256-c2O+xnYvOubIciFN1aphhZHxHW45DzJ7QAQDvVwj1Jk=";
+      sha256 = "sha256-Q/E0EBUUPGJrY0pwmHLv6EjkWtJERMCRSW+cZI/XGmc=";
     };
     linux-x86_64 = fetchurl {
       url = "https://github.com/CosmWasm/wasmvm/releases/download/${wasmvmVersion}/libwasmvm_muslc.x86_64.a";
-      sha256 = "sha256-/Phan0mC/EludahLAeakxG7ruOOdXNNKLXw/rzAps8s=";
+      sha256 = "sha256-cMmJaE0rSMoXu9VbtpS7sTbXXDk8Bn7zvbyjHSsjtXg=";
     };
     linux-aarch64 = fetchurl {
       url = "https://github.com/CosmWasm/wasmvm/releases/download/${wasmvmVersion}/libwasmvm_muslc.aarch64.a";
-      sha256 = "sha256-fmG1Zp3S2sIkYFwFWlnBwjxS35jXqxocrKwjKti7f4c=";
+      sha256 = "sha256-cMmJaE0rSMoXu9VbtpS7sTbXXDk8Bn7zvbyjHSsjtXg=";
     };
   };
 
@@ -78,10 +78,10 @@ buildGo123Module' rec {
   src = fetchFromGitHub {
     owner = "MANTRA-Chain";
     repo = pname;
-    rev = "8638341558f1ced1483ceb01522221a7e697fc5c";
-    hash = "sha256-pv3YGszBXzWu3PH8+EgOkozbFe02oKO2dKZ6Hn7kJG4=";
+    rev = "b1f7308f2998cd8bd97f91c82bd3a90bca25c095";
+    hash = "sha256-EXfsutIJmUsZYatHtaUiUhmeJ1gjBmdE3X3U3db7kqw=";
   };
-  vendorHash = "sha256-AJRbAMOf7IkkZ43wHUH1PxJGu0RwQi7cIIp7kdBV0/E=";
+  vendorHash = "sha256-pYEb7aZvZYQqOIvdiAd/cYQD7PdY1ou9jMgn4CEEVhI=";
   proxyVendor = true;
   modules = ./gomod2nix.toml;
   pwd = src; # needed to support replace

@@ -3,9 +3,11 @@ on:
   push: 
     branches:
       - main
+      - release/v5
   pull_request:
     branches:
       - main
+      - release/v5
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
