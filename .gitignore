@@ -205,3 +205,6 @@ __marimo__/
 /.direnv
 /data
 result
+
+integration_tests/CosmWasm/artifacts
+integration_tests/CosmWasm/target
