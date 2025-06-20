@@ -17,6 +17,7 @@
 		"mergeNetsplitBlock": 0,
 		"shanghaiTime": 1750383276,
 		"cancunTime": 1750383276,
+		"pragueTime": 1750383280,
 		"terminalTotalDifficulty": 0,
 		"depositContractAddress": "0x0000000000000000000000000000000000000000",
 		"ethash": {},

@@ -21,9 +21,9 @@ def test_dynamic_fee_tx(mantra):
     - base fee adjustment is compliant to go-ethereum
     """
     w3 = mantra.w3
-    amount = 10000
+    amount = 1000
     before = w3.eth.get_balance(ADDRS["community"])
-    tip_price = 1
+    tip_price = 10000000000
     max_price = 1000000000000 + tip_price
     tx = {
         "to": "0x0000000000000000000000000000000000000000",
