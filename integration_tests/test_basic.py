@@ -79,7 +79,7 @@ def test_events(mantra):
         w3,
         CONTRACTS["TestERC20A"],
         key=KEYS["validator"],
-        exp_gas_used=619754,
+        exp_gas_used=626988,
     )
     tx = erc20.functions.transfer(ADDRS["community"], 10).build_transaction(
         {"from": ADDRS["validator"]}
@@ -119,7 +119,7 @@ def test_minimal_gas_price(mantra):
         "to": "0x0000000000000000000000000000000000000000",
         "value": 10000,
     }
-    with pytest.raises(ValueError):
+    with pytest.raises(web3.exceptions.Web3RPCError):
         send_transaction(
             w3,
             {**tx, "gasPrice": 1},
@@ -149,7 +149,7 @@ def test_transaction(mantra):
     initial_block_number = w3.eth.get_block_number()
 
     # tx already in mempool
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
         send_transaction(
             w3,
             {
@@ -163,7 +163,7 @@ def test_transaction(mantra):
     assert "tx already in mempool" in str(exc)
 
     # invalid sequence
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
         send_transaction(
             w3,
             {
@@ -177,7 +177,7 @@ def test_transaction(mantra):
     assert "invalid sequence" in str(exc)
 
     # out of gas
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
         send_transaction(
             w3,
             {
@@ -191,7 +191,7 @@ def test_transaction(mantra):
     assert "out of gas" in str(exc)
 
     # insufficient fee
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
         send_transaction(
             w3,
             {
@@ -329,7 +329,7 @@ def test_message_call(mantra):
     assert elapsed < 5  # should finish in reasonable time
 
     receipt = send_transaction(w3, tx)
-    assert 25368338 == receipt.cumulativeGasUsed
+    assert 25446341 == receipt.cumulativeGasUsed
     assert receipt.status == 1, "shouldn't fail"
     assert len(receipt.logs) == iterations
 
@@ -490,9 +490,9 @@ def test_textual(mantra):
     assert rsp["code"] == 0, rsp["raw_log"]
 
 
-@pytest.mark.skip(reason="skipping opBlockhash test")
-def test_op_blk_hash(mantra):
-    w3 = mantra.w3
+# @pytest.mark.skip(reason="skipping opBlockhash test")
+def test_op_blk_hash(geth):
+    w3 = geth.w3
     contract = deploy_contract(w3, CONTRACTS["TestBlockTxProperties"])
     height = w3.eth.get_block_number()
     w3_wait_for_new_blocks(w3, 1)

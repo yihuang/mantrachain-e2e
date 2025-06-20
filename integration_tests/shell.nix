@@ -8,6 +8,8 @@ pkgs.mkShell {
     pkgs.nodejs
     pkgs.test-env
     pkgs.poetry
+    pkgs.go-ethereum
+    pkgs.start-scripts
   ] ++ pkgs.lib.optionals includeMantrachaind [
     pkgs.mantrachaind
   ];

@@ -51,7 +51,7 @@ def test_destruct(mantra):
                 }
             )
         )
-        raw_transactions.append(sign_transaction(w3, tx, acc.key).rawTransaction)
+        raw_transactions.append(sign_transaction(w3, tx, acc.key).raw_transaction)
         nonce += 1
     sended_hash_set = send_raw_transactions(w3, raw_transactions)
 

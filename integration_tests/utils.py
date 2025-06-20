@@ -278,7 +278,7 @@ def send_raw_transactions(w3, raw_transactions):
 
 def send_transaction(w3, tx, key=KEYS["validator"]):
     signed = sign_transaction(w3, tx, key)
-    txhash = w3.eth.send_raw_transaction(signed.rawTransaction)
+    txhash = w3.eth.send_raw_transaction(signed.raw_transaction)
     return w3.eth.wait_for_transaction_receipt(txhash)
 
 
@@ -288,7 +288,7 @@ def send_txs(w3, cli, to, keys, params):
     raw_transactions = []
     for key_from in keys:
         signed = sign_transaction(w3, tx, key_from)
-        raw_transactions.append(signed.rawTransaction)
+        raw_transactions.append(signed.raw_transaction)
 
     # wait block update
     block_num_0 = wait_for_new_blocks(cli, 1, sleep=0.1)
@@ -409,7 +409,7 @@ def contract_address(addr, nonce):
 def build_batch_tx(w3, cli, txs, key=KEYS["validator"]):
     "return cosmos batch tx and eth tx hashes"
     signed_txs = [sign_transaction(w3, tx, key) for tx in txs]
-    tmp_txs = [cli.build_evm_tx(s.rawTransaction.hex()) for s in signed_txs]
+    tmp_txs = [cli.build_evm_tx(f"0x{s.raw_transaction.hex()}") for s in signed_txs]
 
     msgs = [tx["body"]["messages"][0] for tx in tmp_txs]
     fee = sum(int(tx["auth_info"]["fee"]["amount"][0]["amount"]) for tx in tmp_txs)
