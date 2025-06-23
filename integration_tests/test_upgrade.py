@@ -11,9 +11,11 @@ from pystarport.cluster import SUPERVISOR_CONFIG_FILE
 
 from .network import Mantra, setup_custom_mantra
 from .utils import (
+    CONTRACTS,
     approve_proposal,
     assert_transfer,
     bech32_to_eth,
+    deploy_contract,
     derive_new_account,
     edit_ini_sections,
     eth_to_bech32,
@@ -145,6 +147,12 @@ def exec(c):
     addr_b = eth_to_bech32(acc_b.address)
     assert_transfer(cli, addr_a, addr_b, amt=1e6)
     wait_for_port(ports.evmrpc_port(c.base_port(0)))
+    # check set contract tx works
+    contract = deploy_contract(c.w3, CONTRACTS["Greeter"], key=acc_b.key)
+    assert "Hello" == contract.caller.greet()
+    tx = contract.functions.setGreeting("world").build_transaction()
+    receipt = send_transaction(c.w3, tx, key=acc_b.key)
+    assert receipt.status == 1
     # check basic tx works
     receipt = send_transaction(
         c.w3,

@@ -17,7 +17,6 @@ def test_gas_call(mantra):
         {"from": ADDRS["validator"], "gasPrice": mantra.w3.eth.gas_price}
     )
     mantra_call_receipt = mantra.w3.eth.wait_for_transaction_receipt(mantra_txhash)
-    print("mm-mantra_call_receipt.gasUsed", mantra_call_receipt.gasUsed)
     assert mantra_call_receipt.gasUsed == 267426
 
 
