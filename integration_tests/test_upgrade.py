@@ -11,10 +11,12 @@ from pystarport.cluster import SUPERVISOR_CONFIG_FILE
 
 from .network import Mantra, setup_custom_mantra
 from .utils import (
-    ADDRS,
     approve_proposal,
     assert_transfer,
+    bech32_to_eth,
+    derive_new_account,
     edit_ini_sections,
+    eth_to_bech32,
     send_transaction,
     wait_for_block,
     wait_for_new_blocks,
@@ -95,22 +97,7 @@ def setup_mantra_test(tmp_path_factory):
         yield mantra
 
 
-def check_basic_tx(c):
-    # check basic tx works
-    wait_for_port(ports.evmrpc_port(c.base_port(0)))
-    receipt = send_transaction(
-        c.w3,
-        {
-            "to": ADDRS["community"],
-            "value": 1000,
-            "maxFeePerGas": 10000000000000,
-            "maxPriorityFeePerGas": 10000,
-        },
-    )
-    assert receipt.status == 1
-
-
-def exec(c, tmp_path_factory):
+def exec(c):
     """
     - propose an upgrade and pass it
     - wait for it to happen
@@ -149,15 +136,29 @@ def exec(c, tmp_path_factory):
         wait_for_port(ports.rpc_port(base_port))
         return c.cosmos_cli()
 
-    # test migrate keystore
     height = cli.block_height()
     target_height = height + 15
 
     cli = do_upgrade("v5", target_height)
     addr_a = cli.address("community")
-    addr_b = cli.address("reserve")
-    assert_transfer(cli, addr_a, addr_b)
+    acc_b = derive_new_account(4)
+    addr_b = eth_to_bech32(acc_b.address)
+    assert_transfer(cli, addr_a, addr_b, amt=1e6)
+    wait_for_port(ports.evmrpc_port(c.base_port(0)))
+    # check basic tx works
+    receipt = send_transaction(
+        c.w3,
+        {
+            "to": bech32_to_eth(addr_a),
+            "value": 1,
+            "gas": 21000,
+            "maxFeePerGas": 10000000000000,
+            "maxPriorityFeePerGas": 10000,
+        },
+        key=acc_b.key,
+    )
+    assert receipt.status == 1
 
 
-def test_cosmovisor_upgrade(custom_mantra: Mantra, tmp_path_factory):
-    exec(custom_mantra, tmp_path_factory)
+def test_cosmovisor_upgrade(custom_mantra: Mantra):
+    exec(custom_mantra)

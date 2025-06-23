@@ -348,7 +348,7 @@ def decode_bech32(addr):
 
 
 def bech32_to_eth(addr):
-    return decode_bech32(addr).hex()
+    return to_checksum_address(decode_bech32(addr).hex())
 
 
 def module_address(name):
@@ -364,17 +364,11 @@ def assert_balance(cli, w3, name):
             raise
         addr = name
     uom = cli.balance(addr)
-    wei = w3.eth.get_balance(to_checksum_address(bech32_to_eth(addr)))
+    wei = w3.eth.get_balance(bech32_to_eth(addr))
     assert uom == wei // WEI_PER_UOM
     print(
-        f"{name} contains:",
-        uom,
-        "om:",
-        uom // UOM_PER_OM,
-        "wei:",
-        wei,
-        "ether:",
-        wei // WEI_PER_ETH,
+        f"{name} contains uom: {uom}, om: {uom // UOM_PER_OM},",
+        f"wei: {wei}, ether: {wei // WEI_PER_ETH}.",
     )
     return uom
 
@@ -392,10 +386,9 @@ def assert_contract(cli, w3):
     assert_balance(cli, w3, eth_to_bech32(ADDRS[name]))
 
 
-def assert_transfer(cli, addr_a, addr_b):
+def assert_transfer(cli, addr_a, addr_b, amt=1):
     balance_a = cli.balance(addr_a)
     balance_b = cli.balance(addr_b)
-    amt = 1
     rsp = cli.transfer(addr_a, addr_b, f"{amt}{DEFAULT_DENOM}")
     assert rsp["code"] == 0, rsp["raw_log"]
     res = find_log_event_attrs(rsp["events"], "tx", lambda attrs: "fee" in attrs)
