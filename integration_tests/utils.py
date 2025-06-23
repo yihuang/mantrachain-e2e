@@ -55,6 +55,7 @@ TEST_CONTRACTS = {
     "TestBlockTxProperties": "TestBlockTxProperties.sol",
     "Random": "Random.sol",
     "TestExploitContract": "TestExploitContract.sol",
+    "BurnGas": "BurnGas.sol",
 }
 
 
@@ -308,6 +309,16 @@ def deploy_contract(w3, jsonfile, args=(), key=KEYS["validator"], exp_gas_used=N
     """
     deploy contract and return the deployed contract instance
     """
+    contract, _ = deploy_contract_with_receipt(w3, jsonfile, args, key, exp_gas_used)
+    return contract
+
+
+def deploy_contract_with_receipt(
+    w3, jsonfile, args=(), key=KEYS["validator"], exp_gas_used=None
+):
+    """
+    deploy contract and return the deployed contract instance and receipt
+    """
     acct = Account.from_key(key)
     info = json.loads(jsonfile.read_text())
     bytecode = ""
@@ -324,7 +335,7 @@ def deploy_contract(w3, jsonfile, args=(), key=KEYS["validator"], exp_gas_used=N
             exp_gas_used == txreceipt.gasUsed
         ), f"exp {exp_gas_used}, got {txreceipt.gasUsed}"
     address = txreceipt.contractAddress
-    return w3.eth.contract(address=address, abi=info["abi"])
+    return w3.eth.contract(address=address, abi=info["abi"]), txreceipt
 
 
 def create_contract_transaction(w3, jsonfile, args=(), key=KEYS["validator"]):
