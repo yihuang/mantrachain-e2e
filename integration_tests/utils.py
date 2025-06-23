@@ -54,6 +54,7 @@ TEST_CONTRACTS = {
     "SelfDestruct": "SelfDestruct.sol",
     "TestBlockTxProperties": "TestBlockTxProperties.sol",
     "Random": "Random.sol",
+    "TestExploitContract": "TestExploitContract.sol",
 }
 
 
