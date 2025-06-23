@@ -543,3 +543,18 @@ def edit_ini_sections(chain_id, ini_path, callback):
             ini[section].update(callback(i, old))
     with ini_path.open("w") as fp:
         ini.write(fp)
+
+
+def adjust_base_fee(parent_fee, gas_limit, gas_used, params={}):
+    "spec: https://eips.ethereum.org/EIPS/eip-1559#specification"
+    change_denominator = params.get("base_fee_change_denominator", 8)
+    elasticity_multiplier = params.get("elasticity_multiplier", 2)
+    gas_target = gas_limit // elasticity_multiplier
+    if gas_used == gas_target:
+        return parent_fee
+    delta = parent_fee * abs(gas_target - gas_used) // gas_target // change_denominator
+    # https://github.com/cosmos/evm/blob/0e511d32206b1ac709a0eb0ddb1aa21d29e833b8/x/feemarket/keeper/eip1559.go#L93
+    if gas_target > gas_used:
+        return max(parent_fee - delta, int(float(params.get("min_gas_price", 0))))
+    else:
+        return parent_fee + max(delta, 1)

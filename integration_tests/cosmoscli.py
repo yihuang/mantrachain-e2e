@@ -411,3 +411,8 @@ class CosmosCLI:
         if rsp["code"] == 0:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
+
+    def get_params(self, module, **kwargs):
+        kwargs.setdefault("node", self.node_rpc)
+        kwargs.setdefault("output", "json")
+        return json.loads(self.raw("q", module, "params", **kwargs))

@@ -1,16 +1,6 @@
 import pytest
 
-from .utils import ADDRS, KEYS, send_transaction, w3_wait_for_block
-
-
-def adjust_base_fee(parent_fee, gas_limit, gas_used):
-    "spec: https://eips.ethereum.org/EIPS/eip-1559#specification"
-    change_denominator = 8
-    elasticity_multiplier = 2
-    gas_target = gas_limit // elasticity_multiplier
-
-    delta = parent_fee * (gas_target - gas_used) // gas_target // change_denominator
-    return parent_fee - delta
+from .utils import ADDRS, KEYS, adjust_base_fee, send_transaction, w3_wait_for_block
 
 
 @pytest.mark.skip(reason="skipping dynamic fee tx test")
@@ -47,9 +37,10 @@ def test_dynamic_fee_tx(mantra):
     # check the next block's base fee is adjusted accordingly
     w3_wait_for_block(w3, txreceipt.blockNumber + 1)
     next_base_price = w3.eth.get_block(txreceipt.blockNumber + 1).baseFeePerGas
-
     assert next_base_price == adjust_base_fee(
-        blk.baseFeePerGas, blk.gasLimit, blk.gasUsed
+        blk.baseFeePerGas,
+        blk.gasLimit,
+        blk.gasUsed,
     )
 
 
