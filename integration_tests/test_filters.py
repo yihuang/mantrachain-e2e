@@ -5,8 +5,33 @@ from .utils import (
     CONTRACTS,
     deploy_contract,
     send_transaction,
+    w3_wait_for_new_blocks,
     wait_for_new_blocks,
 )
+
+
+def test_get_logs_by_topic(mantra):
+    w3: Web3 = mantra.w3
+    contract = deploy_contract(w3, CONTRACTS["Greeter"])
+    topic = f"0x{Web3.keccak(text='ChangeGreeting(address,string)').hex()}"
+    tx = contract.functions.setGreeting("world").build_transaction()
+    receipt = send_transaction(w3, tx)
+    assert receipt.status == 1
+    logs = w3.eth.get_logs({"topics": [topic]})
+    assert len(logs) == 1
+    assert logs[0]["address"] == contract.address
+    w3_wait_for_new_blocks(w3, 2)
+    logs = w3.eth.get_logs({"topics": [topic]})
+    assert len(logs) == 0
+    params = {
+        # TODO: align earlist blk instead of "0x0"
+        "fromBlock": hex(receipt.blockNumber),
+        # TODO: align error for future blk
+        "toBlock": "latest",
+        "address": [contract.address],
+    }
+    logs = w3.eth.get_logs(params)
+    assert len(logs) > 0
 
 
 def test_pending_transaction_filter(mantra):
