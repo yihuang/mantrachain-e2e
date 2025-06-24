@@ -16,6 +16,7 @@ pyunormalize = "^16.0.0"
 cprotobuf = { git = "https://github.com/yihuang/cprotobuf.git", branch = "master" }
 web3 = "^7.3.0"
 eth-bloom = "^3.0"
+flaky = "^3.8.1"
 
 [tool.poetry.dev-dependencies]
 attrs = "24.2.0"
