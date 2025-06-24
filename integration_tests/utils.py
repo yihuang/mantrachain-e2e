@@ -368,7 +368,7 @@ def module_address(name):
     return to_checksum_address(decode_bech32(eth_to_bech32(data)).hex())
 
 
-def assert_balance(cli, w3, name):
+def get_balance(cli, name):
     try:
         addr = cli.address(name)
     except Exception as e:
@@ -376,26 +376,24 @@ def assert_balance(cli, w3, name):
             raise
         addr = name
     uom = cli.balance(addr)
+    return uom
+
+
+def assert_balance(cli, w3, name, evm=False):
+    try:
+        addr = cli.address(name)
+    except Exception as e:
+        if "key not found" not in str(e):
+            raise
+        addr = name
+    uom = get_balance(cli, name)
     wei = w3.eth.get_balance(bech32_to_eth(addr))
     assert uom == wei // WEI_PER_UOM
     print(
         f"{name} contains uom: {uom}, om: {uom // UOM_PER_OM},",
         f"wei: {wei}, ether: {wei // WEI_PER_ETH}.",
     )
-    return uom
-
-
-def assert_contract(cli, w3):
-    "test Greeter contract"
-    name = "community"
-    key = KEYS[name]
-    contract = deploy_contract(w3, CONTRACTS["Greeter"], key=key)
-    assert "Hello" == contract.caller.greet()
-    # change
-    tx = contract.functions.setGreeting("world").build_transaction()
-    receipt = send_transaction(w3, tx, key=key)
-    assert receipt.status == 1
-    assert_balance(cli, w3, eth_to_bech32(ADDRS[name]))
+    return wei if evm else uom
 
 
 def assert_transfer(cli, addr_a, addr_b, amt=1):
@@ -407,6 +405,31 @@ def assert_transfer(cli, addr_a, addr_b, amt=1):
     fee = int("".join(takewhile(lambda s: s.isdigit() or s == ".", res["fee"])))
     assert cli.balance(addr_a) == balance_a - amt - fee
     assert cli.balance(addr_b) == balance_b + amt
+
+
+def recover_community(cli, tmp_path):
+    return cli.create_account(
+        "community",
+        mnemonic=os.getenv("COMMUNITY_MNEMONIC"),
+        home=tmp_path,
+    )["address"]
+
+
+def transfer_via_cosmos(cli, from_addr, to_addr, amount):
+    tx = cli.transfer(
+        from_addr,
+        to_addr,
+        f"{amount}{DEFAULT_DENOM}",
+        generate_only=True,
+        chain_id=cli.chain_id,
+    )
+    tx_json = cli.sign_tx_json(
+        tx, from_addr, home=cli.data_dir, node=cli.node_rpc, chain_id=cli.chain_id
+    )
+    rsp = cli.broadcast_tx_json(tx_json, home=cli.data_dir)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    attrs = find_log_event_attrs(rsp["events"], "tx", lambda attrs: "fee" in attrs)
+    return int("".join(takewhile(lambda s: s.isdigit() or s == ".", attrs["fee"])))
 
 
 class ContractAddress(rlp.Serializable):

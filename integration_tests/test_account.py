@@ -11,16 +11,12 @@ from .utils import (
 
 
 @pytest.mark.connect
-def test_connect_get_transaction_count(connect_mantra):
-    get_transaction_count(connect_mantra)
+def test_connect_transaction_count(connect_mantra):
+    test_transaction_count(None, connect_mantra)
 
 
-def test_get_transaction_count(mantra):
-    get_transaction_count(mantra)
-
-
-def get_transaction_count(mantra):
-    w3 = mantra.w3
+def test_transaction_count(mantra, connect_mantra):
+    w3 = connect_mantra.w3
     blk = hex(w3.eth.block_number)
     name = "community"
     sender = ADDRS[name]
@@ -44,16 +40,12 @@ def get_transaction_count(mantra):
 
 
 @pytest.mark.connect
-def test_connect_query_future_blk(connect_mantra):
-    query_future_blk(connect_mantra)
+def test_connect_future_blk(connect_mantra):
+    test_future_blk(None, connect_mantra)
 
 
-def test_query_future_blk(mantra):
-    query_future_blk(mantra)
-
-
-def query_future_blk(mantra):
-    w3 = mantra.w3
+def test_future_blk(mantra, connect_mantra):
+    w3 = connect_mantra.w3
     acc = derive_new_account(2).address
     current = w3.eth.block_number
     future = current + 1000

@@ -12,6 +12,7 @@ from pystarport.cluster import SUPERVISOR_CONFIG_FILE
 from .network import Mantra, setup_custom_mantra
 from .utils import (
     CONTRACTS,
+    DEFAULT_FEE,
     approve_proposal,
     assert_transfer,
     bech32_to_eth,
@@ -19,6 +20,7 @@ from .utils import (
     derive_new_account,
     edit_ini_sections,
     eth_to_bech32,
+    get_balance,
     send_transaction,
     wait_for_block,
     wait_for_new_blocks,
@@ -107,6 +109,7 @@ def exec(c):
     """
     cli = c.cosmos_cli()
     base_port = c.base_port(0)
+    community = "community"
 
     c.supervisorctl("start", "mantra-canary-net-1-node0", "mantra-canary-net-1-node1")
     wait_for_new_blocks(cli, 1)
@@ -114,7 +117,7 @@ def exec(c):
     def do_upgrade(plan_name, target):
         print(f"upgrade {plan_name} height: {target}")
         rsp = cli.software_upgrade(
-            "community",
+            community,
             {
                 "name": plan_name,
                 "title": "upgrade test",
@@ -142,11 +145,13 @@ def exec(c):
     target_height = height + 15
 
     cli = do_upgrade("v5", target_height)
-    addr_a = cli.address("community")
+    addr_a = cli.address(community)
     acc_b = derive_new_account(4)
     addr_b = eth_to_bech32(acc_b.address)
-    assert_transfer(cli, addr_a, addr_b, amt=1e6)
+
     wait_for_port(ports.evmrpc_port(c.base_port(0)))
+    balance = get_balance(cli, community)
+    assert_transfer(cli, addr_a, addr_b, amt=balance - DEFAULT_FEE)
     # check set contract tx works
     contract = deploy_contract(c.w3, CONTRACTS["Greeter"], key=acc_b.key)
     assert "Hello" == contract.caller.greet()
@@ -157,8 +162,9 @@ def exec(c):
     receipt = send_transaction(
         c.w3,
         {
+            "from": acc_b.address,
             "to": bech32_to_eth(addr_a),
-            "value": 1,
+            "value": 1000,
             "gas": 21000,
             "maxFeePerGas": 10000000000000,
             "maxPriorityFeePerGas": 10000,
@@ -166,6 +172,7 @@ def exec(c):
         key=acc_b.key,
     )
     assert receipt.status == 1
+    wait_for_new_blocks(cli, 3)
 
 
 def test_cosmovisor_upgrade(custom_mantra: Mantra):

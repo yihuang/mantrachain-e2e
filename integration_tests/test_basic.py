@@ -15,11 +15,12 @@ from .utils import (
     KEYS,
     Greeter,
     RevertTestContract,
-    assert_contract,
+    assert_balance,
     assert_transfer,
     build_batch_tx,
     contract_address,
     deploy_contract,
+    recover_community,
     send_transaction,
     w3_wait_for_new_blocks,
 )
@@ -64,18 +65,25 @@ def test_send_transaction(mantra):
     assert receipt.gasUsed == 21000
 
 
-def test_events(mantra):
-    w3 = mantra.w3
+@pytest.mark.connect
+def test_connect_events(connect_mantra):
+    test_events(None, connect_mantra)
+
+
+def test_events(mantra, connect_mantra):
+    w3 = connect_mantra.w3
+    sender = "community"
+    receiver = "signer1"
     erc20 = deploy_contract(
         w3,
         CONTRACTS["TestERC20A"],
-        key=KEYS["validator"],
+        key=KEYS[sender],
         exp_gas_used=914023,
     )
-    tx = erc20.functions.transfer(ADDRS["community"], 10).build_transaction(
-        {"from": ADDRS["validator"]}
+    tx = erc20.functions.transfer(ADDRS[receiver], 10).build_transaction(
+        {"from": ADDRS[sender]}
     )
-    txreceipt = send_transaction(w3, tx, KEYS["validator"])
+    txreceipt = send_transaction(w3, tx, KEYS[sender])
     assert len(txreceipt.logs) == 1
     data = "0x000000000000000000000000000000000000000000000000000000000000000a"
     expect_log = {
@@ -84,8 +92,8 @@ def test_events(mantra):
             HexBytes(
                 abi.event_signature_to_log_topic("Transfer(address,address,uint256)")
             ),
-            HexBytes(b"\x00" * 12 + HexBytes(ADDRS["validator"])),
-            HexBytes(b"\x00" * 12 + HexBytes(ADDRS["community"])),
+            HexBytes(b"\x00" * 12 + HexBytes(ADDRS[sender])),
+            HexBytes(b"\x00" * 12 + HexBytes(ADDRS[receiver])),
         ],
         "data": HexBytes(data),
         "transactionIndex": 0,
@@ -343,8 +351,25 @@ def test_log0(mantra):
     assert log.data == HexBytes(data)
 
 
-def test_contract(mantra):
-    assert_contract(mantra.cosmos_cli(), mantra.w3)
+@pytest.mark.connect
+def test_connect_contract(connect_mantra, tmp_path):
+    test_contract(None, connect_mantra, tmp_path)
+
+
+def test_contract(mantra, connect_mantra, tmp_path):
+    "test Greeter contract"
+    cli = connect_mantra.cosmos_cli(tmp_path)
+    recover_community(cli, tmp_path)
+    w3 = connect_mantra.w3
+    name = "community"
+    key = KEYS[name]
+    contract = deploy_contract(w3, CONTRACTS["Greeter"], key=key)
+    assert "Hello" == contract.caller.greet()
+    # change
+    tx = contract.functions.setGreeting("world").build_transaction()
+    receipt = send_transaction(w3, tx, key=key)
+    assert receipt.status == 1
+    assert_balance(cli, w3, name)
 
 
 def test_batch_tx(mantra):
