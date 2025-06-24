@@ -41,6 +41,11 @@
       client_config: {
         'broadcast-mode': 'sync',
       },
+      'app-config': {
+        mempool: {
+          'max-txs': 5000,
+        },
+      },
     }],
     accounts: [{
       name: 'community',
