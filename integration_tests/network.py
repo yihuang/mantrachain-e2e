@@ -6,6 +6,7 @@ from pathlib import Path
 
 import web3
 from pystarport import cluster, ports
+from web3.middleware import ExtraDataToPOAMiddleware
 
 from .cosmoscli import CosmosCLI
 from .utils import supervisorctl, wait_for_block, wait_for_port, wait_for_url
@@ -151,3 +152,82 @@ def connect_custom_mantra():
     wait_for_url(rpc)
     wait_for_url(evm_rpc)
     yield ConnectMantra(rpc, evm_rpc, evm_rpc_ws, chain_id)
+
+
+class Geth:
+    def __init__(self, w3):
+        self.w3 = w3
+
+
+def setup_geth(path, base_port):
+    with (path / "geth.log").open("w") as logfile:
+        cmd = [
+            "start-geth",
+            path,
+            "--http.port",
+            str(base_port),
+            "--port",
+            str(base_port + 1),
+            "--miner.etherbase",
+            "0x57f96e6B86CdeFdB3d412547816a82E3E0EbF9D2",
+            "--http.api",
+            "eth,net,web3,debug",
+        ]
+        print(*cmd)
+        proc = subprocess.Popen(
+            cmd,
+            preexec_fn=os.setsid,
+            stdout=logfile,
+            stderr=subprocess.STDOUT,
+        )
+        try:
+            wait_for_port(base_port)
+            w3 = web3.Web3(web3.providers.HTTPProvider(f"http://127.0.0.1:{base_port}"))
+            w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+            yield Geth(w3)
+        finally:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            # proc.terminate()
+            proc.wait()
+
+
+def setup_beacon(path, base_port):
+    with (path / "beacon.log").open("w") as logfile:
+        cmd = [
+            "start-beacon",
+            path,
+        ]
+        print(*cmd)
+        proc = subprocess.Popen(
+            cmd,
+            preexec_fn=os.setsid,
+            stdout=logfile,
+            stderr=subprocess.STDOUT,
+        )
+        try:
+            wait_for_port(base_port)
+            yield proc
+        finally:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            proc.wait()
+
+
+def setup_validator(path, base_port):
+    with (path / "validator.log").open("w") as logfile:
+        cmd = [
+            "start-validator",
+            path,
+        ]
+        print(*cmd)
+        proc = subprocess.Popen(
+            cmd,
+            preexec_fn=os.setsid,
+            stdout=logfile,
+            stderr=subprocess.STDOUT,
+        )
+        try:
+            wait_for_port(base_port)
+            yield proc
+        finally:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            proc.wait()

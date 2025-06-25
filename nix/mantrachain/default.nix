@@ -83,8 +83,6 @@ buildGo123Module' rec {
   };
   vendorHash = "sha256-pYEb7aZvZYQqOIvdiAd/cYQD7PdY1ou9jMgn4CEEVhI=";
   proxyVendor = true;
-  modules = ./gomod2nix.toml;
-  pwd = src; # needed to support replace
   subPackages = [ "cmd/mantrachaind" ];
   CGO_ENABLED = "1";
 

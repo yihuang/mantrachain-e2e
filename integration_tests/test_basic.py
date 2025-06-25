@@ -1,7 +1,6 @@
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from itertools import takewhile
 
 import pytest
 import web3
@@ -16,11 +15,12 @@ from .utils import (
     KEYS,
     Greeter,
     RevertTestContract,
-    assert_contract,
+    assert_balance,
+    assert_transfer,
     build_batch_tx,
     contract_address,
     deploy_contract,
-    find_log_event_attrs,
+    recover_community,
     send_transaction,
     w3_wait_for_new_blocks,
 )
@@ -48,15 +48,7 @@ def test_transfer(mantra):
     cli = mantra.cosmos_cli()
     addr_a = cli.address("community")
     addr_b = cli.address("reserve")
-    balance_a = cli.balance(addr_a)
-    balance_b = cli.balance(addr_b)
-    amt = 1
-    rsp = cli.transfer(addr_a, addr_b, f"{amt}{DEFAULT_DENOM}")
-    assert rsp["code"] == 0, rsp["raw_log"]
-    res = find_log_event_attrs(rsp["events"], "tx", lambda attrs: "fee" in attrs)
-    fee = int("".join(takewhile(lambda s: s.isdigit() or s == ".", res["fee"])))
-    assert cli.balance(addr_a) == balance_a - amt - fee
-    assert cli.balance(addr_b) == balance_b + amt
+    assert_transfer(cli, addr_a, addr_b)
 
 
 def test_send_transaction(mantra):
@@ -73,18 +65,25 @@ def test_send_transaction(mantra):
     assert receipt.gasUsed == 21000
 
 
-def test_events(mantra):
-    w3 = mantra.w3
+@pytest.mark.connect
+def test_connect_events(connect_mantra):
+    test_events(None, connect_mantra)
+
+
+def test_events(mantra, connect_mantra):
+    w3 = connect_mantra.w3
+    sender = "community"
+    receiver = "signer1"
     erc20 = deploy_contract(
         w3,
         CONTRACTS["TestERC20A"],
-        key=KEYS["validator"],
-        exp_gas_used=619754,
+        key=KEYS[sender],
+        exp_gas_used=914023,
     )
-    tx = erc20.functions.transfer(ADDRS["community"], 10).build_transaction(
-        {"from": ADDRS["validator"]}
+    tx = erc20.functions.transfer(ADDRS[receiver], 10).build_transaction(
+        {"from": ADDRS[sender]}
     )
-    txreceipt = send_transaction(w3, tx, KEYS["validator"])
+    txreceipt = send_transaction(w3, tx, KEYS[sender])
     assert len(txreceipt.logs) == 1
     data = "0x000000000000000000000000000000000000000000000000000000000000000a"
     expect_log = {
@@ -93,8 +92,8 @@ def test_events(mantra):
             HexBytes(
                 abi.event_signature_to_log_topic("Transfer(address,address,uint256)")
             ),
-            HexBytes(b"\x00" * 12 + HexBytes(ADDRS["validator"])),
-            HexBytes(b"\x00" * 12 + HexBytes(ADDRS["community"])),
+            HexBytes(b"\x00" * 12 + HexBytes(ADDRS[sender])),
+            HexBytes(b"\x00" * 12 + HexBytes(ADDRS[receiver])),
         ],
         "data": HexBytes(data),
         "transactionIndex": 0,
@@ -119,7 +118,7 @@ def test_minimal_gas_price(mantra):
         "to": "0x0000000000000000000000000000000000000000",
         "value": 10000,
     }
-    with pytest.raises(ValueError):
+    with pytest.raises(web3.exceptions.Web3RPCError):
         send_transaction(
             w3,
             {**tx, "gasPrice": 1},
@@ -149,7 +148,7 @@ def test_transaction(mantra):
     initial_block_number = w3.eth.get_block_number()
 
     # tx already in mempool
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
         send_transaction(
             w3,
             {
@@ -163,7 +162,7 @@ def test_transaction(mantra):
     assert "tx already in mempool" in str(exc)
 
     # invalid sequence
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
         send_transaction(
             w3,
             {
@@ -177,7 +176,7 @@ def test_transaction(mantra):
     assert "invalid sequence" in str(exc)
 
     # out of gas
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
         send_transaction(
             w3,
             {
@@ -191,7 +190,7 @@ def test_transaction(mantra):
     assert "out of gas" in str(exc)
 
     # insufficient fee
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
         send_transaction(
             w3,
             {
@@ -329,7 +328,7 @@ def test_message_call(mantra):
     assert elapsed < 5  # should finish in reasonable time
 
     receipt = send_transaction(w3, tx)
-    assert 25368338 == receipt.cumulativeGasUsed
+    assert 22326250 == receipt.cumulativeGasUsed
     assert receipt.status == 1, "shouldn't fail"
     assert len(receipt.logs) == iterations
 
@@ -352,8 +351,25 @@ def test_log0(mantra):
     assert log.data == HexBytes(data)
 
 
-def test_contract(mantra):
-    assert_contract(mantra.cosmos_cli(), mantra.w3)
+@pytest.mark.connect
+def test_connect_contract(connect_mantra, tmp_path):
+    test_contract(None, connect_mantra, tmp_path)
+
+
+def test_contract(mantra, connect_mantra, tmp_path):
+    "test Greeter contract"
+    cli = connect_mantra.cosmos_cli(tmp_path)
+    recover_community(cli, tmp_path)
+    w3 = connect_mantra.w3
+    name = "community"
+    key = KEYS[name]
+    contract = deploy_contract(w3, CONTRACTS["Greeter"], key=key)
+    assert "Hello" == contract.caller.greet()
+    # change
+    tx = contract.functions.setGreeting("world").build_transaction()
+    receipt = send_transaction(w3, tx, key=key)
+    assert receipt.status == 1
+    assert_balance(cli, w3, name)
 
 
 def test_batch_tx(mantra):

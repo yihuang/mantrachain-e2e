@@ -1,6 +1,6 @@
 import pytest
 
-from .utils import send_transaction
+from .utils import send_transaction, wait_for_fn
 
 
 @pytest.mark.skip(reason="skipping eoa test")
@@ -8,18 +8,25 @@ def test_eoa(mantra):
     w3 = mantra.w3
     # fund new acct
     acct = w3.eth.account.create()
-    value = 10**22
+    value = 10**18
     tx = {
         "to": acct.address,
         "value": value,
     }
     tx_hash = send_transaction(w3, tx)
-
     # send 7702 tx
     chain_id = w3.eth.chain_id
     nonce = w3.eth.get_transaction_count(acct.address)
-    balance = w3.eth.get_balance(acct.address)
-    assert balance == value
+    new_dst_balance = 0
+
+    def check_balance_change():
+        nonlocal new_dst_balance
+        new_dst_balance = w3.eth.get_balance(acct.address)
+        return new_dst_balance != 0
+
+    wait_for_fn("balance change", check_balance_change)
+    assert w3.eth.get_balance(acct.address) == value
+
     authz = acct.sign_authorization(
         {
             "address": "0xdeadbeef00000000000000000000000000000000",
@@ -41,8 +48,10 @@ def test_eoa(mantra):
     }
     signed = acct.sign_transaction(tx)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
-    w3.eth.wait_for_transaction_receipt(tx_hash)
-    code = w3.eth.get_code(acct.address)
+    res = w3.eth.wait_for_transaction_receipt(tx_hash)
+    assert res.status == 1
+    # TODO: db sync fix release https://github.com/ethereum/go-ethereum/pull/31703
+    code = w3.eth.get_code(acct.address, block_identifier=res["blockNumber"])
     assert code.hex().startswith("ef0100deadbeef"), "Code was not set!"
 
     # clear code
@@ -59,6 +68,7 @@ def test_eoa(mantra):
     ]
     signed_reset = acct.sign_transaction(clear_tx)
     clear_tx_hash = w3.eth.send_raw_transaction(signed_reset.raw_transaction)
-    w3.eth.wait_for_transaction_receipt(clear_tx_hash)
+    res = w3.eth.wait_for_transaction_receipt(clear_tx_hash)
+    assert res.status == 1
     reset_code = w3.eth.get_code(acct.address)
-    assert not reset_code.hex().startswith(""), "Code was not set!"
+    assert reset_code.hex().startswith(""), "Code was not clear!"

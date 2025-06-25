@@ -1,11 +1,14 @@
+import configparser
 import hashlib
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import takewhile
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -51,6 +54,8 @@ TEST_CONTRACTS = {
     "SelfDestruct": "SelfDestruct.sol",
     "TestBlockTxProperties": "TestBlockTxProperties.sol",
     "Random": "Random.sol",
+    "TestExploitContract": "TestExploitContract.sol",
+    "BurnGas": "BurnGas.sol",
 }
 
 
@@ -278,7 +283,7 @@ def send_raw_transactions(w3, raw_transactions):
 
 def send_transaction(w3, tx, key=KEYS["validator"]):
     signed = sign_transaction(w3, tx, key)
-    txhash = w3.eth.send_raw_transaction(signed.rawTransaction)
+    txhash = w3.eth.send_raw_transaction(signed.raw_transaction)
     return w3.eth.wait_for_transaction_receipt(txhash)
 
 
@@ -288,7 +293,7 @@ def send_txs(w3, cli, to, keys, params):
     raw_transactions = []
     for key_from in keys:
         signed = sign_transaction(w3, tx, key_from)
-        raw_transactions.append(signed.rawTransaction)
+        raw_transactions.append(signed.raw_transaction)
 
     # wait block update
     block_num_0 = wait_for_new_blocks(cli, 1, sleep=0.1)
@@ -303,6 +308,16 @@ def send_txs(w3, cli, to, keys, params):
 def deploy_contract(w3, jsonfile, args=(), key=KEYS["validator"], exp_gas_used=None):
     """
     deploy contract and return the deployed contract instance
+    """
+    contract, _ = deploy_contract_with_receipt(w3, jsonfile, args, key, exp_gas_used)
+    return contract
+
+
+def deploy_contract_with_receipt(
+    w3, jsonfile, args=(), key=KEYS["validator"], exp_gas_used=None
+):
+    """
+    deploy contract and return the deployed contract instance and receipt
     """
     acct = Account.from_key(key)
     info = json.loads(jsonfile.read_text())
@@ -320,7 +335,7 @@ def deploy_contract(w3, jsonfile, args=(), key=KEYS["validator"], exp_gas_used=N
             exp_gas_used == txreceipt.gasUsed
         ), f"exp {exp_gas_used}, got {txreceipt.gasUsed}"
     address = txreceipt.contractAddress
-    return w3.eth.contract(address=address, abi=info["abi"])
+    return w3.eth.contract(address=address, abi=info["abi"]), txreceipt
 
 
 def create_contract_transaction(w3, jsonfile, args=(), key=KEYS["validator"]):
@@ -345,7 +360,7 @@ def decode_bech32(addr):
 
 
 def bech32_to_eth(addr):
-    return decode_bech32(addr).hex()
+    return to_checksum_address(decode_bech32(addr).hex())
 
 
 def module_address(name):
@@ -353,7 +368,7 @@ def module_address(name):
     return to_checksum_address(decode_bech32(eth_to_bech32(data)).hex())
 
 
-def assert_balance(cli, w3, name):
+def get_balance(cli, name):
     try:
         addr = cli.address(name)
     except Exception as e:
@@ -361,32 +376,60 @@ def assert_balance(cli, w3, name):
             raise
         addr = name
     uom = cli.balance(addr)
-    wei = w3.eth.get_balance(to_checksum_address(bech32_to_eth(addr)))
-    assert uom == wei // WEI_PER_UOM
-    print(
-        f"{name} contains:",
-        uom,
-        "om:",
-        uom // UOM_PER_OM,
-        "wei:",
-        wei,
-        "ether:",
-        wei // WEI_PER_ETH,
-    )
     return uom
 
 
-def assert_contract(cli, w3):
-    "test Greeter contract"
-    name = "community"
-    key = KEYS[name]
-    contract = deploy_contract(w3, CONTRACTS["Greeter"], key=key)
-    assert "Hello" == contract.caller.greet()
-    # change
-    tx = contract.functions.setGreeting("world").build_transaction()
-    receipt = send_transaction(w3, tx, key=key)
-    assert receipt.status == 1
-    assert_balance(cli, w3, eth_to_bech32(ADDRS[name]))
+def assert_balance(cli, w3, name, evm=False):
+    try:
+        addr = cli.address(name)
+    except Exception as e:
+        if "key not found" not in str(e):
+            raise
+        addr = name
+    uom = get_balance(cli, name)
+    wei = w3.eth.get_balance(bech32_to_eth(addr))
+    assert uom == wei // WEI_PER_UOM
+    print(
+        f"{name} contains uom: {uom}, om: {uom // UOM_PER_OM},",
+        f"wei: {wei}, ether: {wei // WEI_PER_ETH}.",
+    )
+    return wei if evm else uom
+
+
+def assert_transfer(cli, addr_a, addr_b, amt=1):
+    balance_a = cli.balance(addr_a)
+    balance_b = cli.balance(addr_b)
+    rsp = cli.transfer(addr_a, addr_b, f"{amt}{DEFAULT_DENOM}")
+    assert rsp["code"] == 0, rsp["raw_log"]
+    res = find_log_event_attrs(rsp["events"], "tx", lambda attrs: "fee" in attrs)
+    fee = int("".join(takewhile(lambda s: s.isdigit() or s == ".", res["fee"])))
+    assert cli.balance(addr_a) == balance_a - amt - fee
+    assert cli.balance(addr_b) == balance_b + amt
+
+
+def recover_community(cli, tmp_path):
+    return cli.create_account(
+        "community",
+        mnemonic=os.getenv("COMMUNITY_MNEMONIC"),
+        home=tmp_path,
+    )["address"]
+
+
+def transfer_via_cosmos(cli, from_addr, to_addr, amount):
+    tx = cli.transfer(
+        from_addr,
+        to_addr,
+        f"{amount}{DEFAULT_DENOM}",
+        generate_only=True,
+        chain_id=cli.chain_id,
+    )
+    tx_json = cli.sign_tx_json(
+        tx, from_addr, home=cli.data_dir, node=cli.node_rpc, chain_id=cli.chain_id
+    )
+    rsp = cli.broadcast_tx_json(tx_json, home=cli.data_dir)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    attrs = find_log_event_attrs(rsp["events"], "tx", lambda attrs: "fee" in attrs)
+    return int("".join(takewhile(lambda s: s.isdigit() or s == ".", attrs["fee"])))
 
 
 class ContractAddress(rlp.Serializable):
@@ -409,7 +452,7 @@ def contract_address(addr, nonce):
 def build_batch_tx(w3, cli, txs, key=KEYS["validator"]):
     "return cosmos batch tx and eth tx hashes"
     signed_txs = [sign_transaction(w3, tx, key) for tx in txs]
-    tmp_txs = [cli.build_evm_tx(s.rawTransaction.hex()) for s in signed_txs]
+    tmp_txs = [cli.build_evm_tx(f"0x{s.raw_transaction.hex()}") for s in signed_txs]
 
     msgs = [tx["body"]["messages"][0] for tx in tmp_txs]
     fee = sum(int(tx["auth_info"]["fee"]["amount"][0]["amount"]) for tx in tmp_txs)
@@ -450,7 +493,9 @@ def approve_proposal(n, events, event_query_tx=False):
     )
     proposal_id = ev["proposal_id"]
     for i in range(len(n.config["validators"])):
-        rsp = n.cosmos_cli(i).gov_vote("validator", proposal_id, "yes", event_query_tx)
+        rsp = n.cosmos_cli(i).gov_vote(
+            "validator", proposal_id, "yes", event_query_tx, gas_prices="0.8uom"
+        )
         assert rsp["code"] == 0, rsp["raw_log"]
     wait_for_new_blocks(cli, 1)
     res = cli.query_tally(proposal_id)
@@ -519,3 +564,32 @@ def derive_new_account(n=1):
     account_path = f"m/44'/60'/0'/0/{n}"
     mnemonic = os.getenv("SIGNER1_MNEMONIC")
     return Account.from_mnemonic(mnemonic, account_path=account_path)
+
+
+def edit_ini_sections(chain_id, ini_path, callback):
+    ini = configparser.RawConfigParser()
+    ini.read(ini_path)
+    reg = re.compile(rf"^program:{chain_id}-node(\d+)")
+    for section in ini.sections():
+        m = reg.match(section)
+        if m:
+            i = m.group(1)
+            old = ini[section]
+            ini[section].update(callback(i, old))
+    with ini_path.open("w") as fp:
+        ini.write(fp)
+
+
+def adjust_base_fee(parent_fee, gas_limit, gas_used, params={}):
+    "spec: https://eips.ethereum.org/EIPS/eip-1559#specification"
+    change_denominator = params.get("base_fee_change_denominator", 8)
+    elasticity_multiplier = params.get("elasticity_multiplier", 2)
+    gas_target = gas_limit // elasticity_multiplier
+    if gas_used == gas_target:
+        return parent_fee
+    delta = parent_fee * abs(gas_target - gas_used) // gas_target // change_denominator
+    # https://github.com/cosmos/evm/blob/0e511d32206b1ac709a0eb0ddb1aa21d29e833b8/x/feemarket/keeper/eip1559.go#L93
+    if gas_target > gas_used:
+        return max(parent_fee - delta, int(float(params.get("min_gas_price", 0))))
+    else:
+        return parent_fee + max(delta, 1)
