@@ -363,6 +363,37 @@ class CosmosCLI:
             keyring_backend="test",
         )
 
+    def sign_multisig_tx(self, tx_file, multi_addr, signer_name):
+        return json.loads(
+            self.raw(
+                "tx",
+                "sign",
+                tx_file,
+                from_=signer_name,
+                multisig=multi_addr,
+                home=self.data_dir,
+                keyring_backend="test",
+                chain_id=self.chain_id,
+                node=self.node_rpc,
+            )
+        )
+
+    def combine_multisig_tx(self, tx_file, multi_name, signer1_file, signer2_file):
+        return json.loads(
+            self.raw(
+                "tx",
+                "multisign",
+                tx_file,
+                multi_name,
+                signer1_file,
+                signer2_file,
+                home=self.data_dir,
+                keyring_backend="test",
+                chain_id=self.chain_id,
+                node=self.node_rpc,
+            )
+        )
+
     def account_by_num(self, num):
         return json.loads(
             self.raw(
