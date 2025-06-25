@@ -2,6 +2,13 @@ local config = import 'default.jsonnet';
 
 config {
   'mantra-canary-net-1'+: {
+    validators: super.validators[:std.length(super.validators) - 1] + [super.validators[std.length(super.validators) - 1] {
+      'app-config'+: {
+        mempool: {
+          'max-txs': -1,
+        },
+      },
+    }],
     genesis+: {
       consensus_params: {
         block: {
