@@ -447,3 +447,14 @@ class CosmosCLI:
         kwargs.setdefault("node", self.node_rpc)
         kwargs.setdefault("output", "json")
         return json.loads(self.raw("q", module, "params", **kwargs))
+
+    def query_base_fee(self, **kwargs):
+        default_kwargs = {"home": self.data_dir}
+        return json.loads(
+            self.raw(
+                "q",
+                "feemarket",
+                "base-fee",
+                **(default_kwargs | kwargs),
+            )
+        )["base_fee"]
