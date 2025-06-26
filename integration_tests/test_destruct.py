@@ -19,11 +19,8 @@ def fund_acc(w3, acc, fund=4000000000000000000):
         assert w3.eth.get_balance(addr, "latest") == fund
 
 
-@pytest.mark.skip(reason="skipping destruct")
+@pytest.mark.flaky(max_runs=5)
 def test_destruct(mantra):
-    # def test_destruct(geth):
-    #     if isinstance(geth, Geth):
-    #         time.sleep(3)
     method = "debug_traceTransaction"
     tracer = {"tracer": "callTracer"}
     receiver = "0x0F0cb39319129BA867227e5Aae1abe9e7dd5f861"

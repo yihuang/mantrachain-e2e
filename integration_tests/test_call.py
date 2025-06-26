@@ -16,7 +16,7 @@ def test_temporary_contract_code(mantra):
     data = encode_transaction_data(w3, "intValue", info["abi"], args=[], kwargs={})
     # call an arbitrary address
     address = w3.to_checksum_address("0x0000000000000000000000000000ffffffffffff")
-    hex_state = HexBytes(w3.codec.encode(("uint256",), (state,))).hex()
+    hex_state = f"0x{HexBytes(w3.codec.encode(('uint256',), (state,))).hex()}"
     overrides = {
         address: {
             "code": info["deployedBytecode"],
@@ -46,7 +46,7 @@ def test_override_state(mantra):
 
     info = json.loads(CONTRACTS["Greeter"].read_text())
     int_value = 100
-    hex_state = HexBytes(w3.codec.encode(("uint256",), (int_value,))).hex()
+    hex_state = f"0x{HexBytes(w3.codec.encode(('uint256',), (int_value,))).hex()}"
     state = {
         ("0x" + "0" * 64): hex_state,
     }
