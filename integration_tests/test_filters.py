@@ -20,14 +20,22 @@ def test_get_logs_by_topic(mantra):
     receipt = send_transaction(w3, tx)
     assert receipt.status == 1
 
-    start = w3.eth.block_number
-    end = start + 2000
+    current = w3.eth.block_number
     invalid_block_msg = "invalid block range params"
     # invalid block ranges
     test_cases = [
         {"fromBlock": hex(2000), "toBlock": "latest", "address": [contract.address]},
         {"fromBlock": hex(2), "toBlock": hex(1), "address": [contract.address]},
-        {"fromBlock": "earliest", "toBlock": hex(end), "address": [contract.address]},
+        {
+            "fromBlock": "earliest",
+            "toBlock": hex(current + 200),
+            "address": [contract.address],
+        },
+        {
+            "fromBlock": hex(current + 20),
+            "toBlock": hex(current + 200),
+            "address": [contract.address],
+        },
     ]
 
     for params in test_cases:
@@ -44,13 +52,26 @@ def test_get_logs_by_topic(mantra):
     w3_wait_for_new_blocks(w3, 2)
     assert len(w3.eth.get_logs({"topics": [topic]})) == 0
 
-    end = w3.eth.block_number
+    previous = current
+    current = w3.eth.block_number
     # valid block ranges
     valid_cases = [
         {"fromBlock": "earliest", "toBlock": "latest", "address": [contract.address]},
-        {"fromBlock": "earliest", "toBlock": hex(end), "address": [contract.address]},
-        {"fromBlock": hex(start), "toBlock": "latest", "address": [contract.address]},
-        {"fromBlock": hex(start), "toBlock": hex(end), "address": [contract.address]},
+        {
+            "fromBlock": "earliest",
+            "toBlock": hex(current),
+            "address": [contract.address],
+        },
+        {
+            "fromBlock": hex(previous),
+            "toBlock": "latest",
+            "address": [contract.address],
+        },
+        {
+            "fromBlock": hex(previous),
+            "toBlock": hex(current),
+            "address": [contract.address],
+        },
     ]
     for params in valid_cases:
         logs = w3.eth.get_logs(params)
