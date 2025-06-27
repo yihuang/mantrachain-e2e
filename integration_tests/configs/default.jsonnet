@@ -26,6 +26,9 @@
         'logs-cap': 10000,
         'gas-cap': 30000000,
       },
+      mempool: {
+        'max-txs': 5000,
+      },
     },
     validators: [{
       coins: '1000000000000000000stake,100000000000uom',
@@ -40,11 +43,6 @@
       mnemonic: '${VALIDATOR2_MNEMONIC}',
       client_config: {
         'broadcast-mode': 'sync',
-      },
-      'app-config': {
-        mempool: {
-          'max-txs': 5000,
-        },
       },
     }],
     accounts: [{
