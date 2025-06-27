@@ -2,6 +2,7 @@ import json
 import subprocess
 import tempfile
 
+import requests
 from pystarport.utils import build_cli_args_safe, interact
 
 from .utils import DEFAULT_GAS, DEFAULT_GAS_PRICE, get_sync_info
@@ -39,6 +40,10 @@ class CosmosCLI:
         self.raw = ChainCommand(cmd)
         self.output = None
         self.error = None
+
+    @property
+    def node_rpc_http(self):
+        return "http" + self.node_rpc.removeprefix("tcp")
 
     @classmethod
     def init(cls, moniker, data_dir, node_rpc, cmd, chain_id):
@@ -114,8 +119,11 @@ class CosmosCLI:
         fees=None,
         **kwargs,
     ):
-        kwargs.setdefault("gas_prices", DEFAULT_GAS_PRICE)
-        kwargs.setdefault("gas", DEFAULT_GAS)
+        default_kwargs = {
+            "home": self.data_dir,
+            "gas_prices": DEFAULT_GAS_PRICE,
+            "gas": DEFAULT_GAS,
+        }
         rsp = json.loads(
             self.raw(
                 "tx",
@@ -126,9 +134,8 @@ class CosmosCLI:
                 coins,
                 "-y",
                 "--generate-only" if generate_only else None,
-                home=self.data_dir,
                 fees=fees,
-                **kwargs,
+                **(default_kwargs | kwargs),
             )
         )
         if rsp.get("code") == 0 and event_query_tx:
@@ -458,3 +465,83 @@ class CosmosCLI:
                 **(default_kwargs | kwargs),
             )
         )["base_fee"]
+
+    def create_tokenfactory_denom(self, subdenom, **kwargs):
+        kwargs.setdefault("gas_prices", DEFAULT_GAS_PRICE)
+        kwargs.setdefault("gas", DEFAULT_GAS)
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "tokenfactory",
+                "create-denom",
+                subdenom,
+                "-y",
+                home=self.data_dir,
+                **kwargs,
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def query_tokenfactory_denoms(self, creator, **kwargs):
+        return json.loads(
+            self.raw(
+                "q",
+                "tokenfactory",
+                "denoms-from-creator",
+                creator,
+                home=self.data_dir,
+                **kwargs,
+            )
+        )
+
+    def mint_tokenfactory_denom(self, coin, **kwargs):
+        default_kwargs = {
+            "home": self.data_dir,
+            "gas_prices": DEFAULT_GAS_PRICE,
+            "gas": DEFAULT_GAS,
+        }
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "tokenfactory",
+                "mint",
+                coin,
+                "-y",
+                **(default_kwargs | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def burn_tokenfactory_denom(self, coin, **kwargs):
+        default_kwargs = {
+            "home": self.data_dir,
+            "gas_prices": DEFAULT_GAS_PRICE,
+            "gas": DEFAULT_GAS,
+        }
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "tokenfactory",
+                "burn",
+                coin,
+                "-y",
+                **(default_kwargs | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def tx_search_rpc(self, events: str):
+        rsp = requests.get(
+            f"{self.node_rpc_http}/tx_search",
+            params={
+                "query": f'"{events}"',
+            },
+        ).json()
+        assert "error" not in rsp, rsp["error"]
+        return rsp["result"]["txs"]
