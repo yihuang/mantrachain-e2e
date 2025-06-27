@@ -458,3 +458,73 @@ class CosmosCLI:
                 **(default_kwargs | kwargs),
             )
         )["base_fee"]
+
+    def create_tokenfactory_denom(self, subdenom, **kwargs):
+        kwargs.setdefault("gas_prices", DEFAULT_GAS_PRICE)
+        kwargs.setdefault("gas", DEFAULT_GAS)
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "tokenfactory",
+                "create-denom",
+                subdenom,
+                "-y",
+                home=self.data_dir,
+                **kwargs,
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def query_tokenfactory_denoms(self, creator, **kwargs):
+        return json.loads(
+            self.raw(
+                "q",
+                "tokenfactory",
+                "denoms-from-creator",
+                creator,
+                home=self.data_dir,
+                **kwargs,
+            )
+        )
+
+    def mint_tokenfactory_denom(self, coin, **kwargs):
+        default_kwargs = {
+            "home": self.data_dir,
+            "gas_prices": DEFAULT_GAS_PRICE,
+            "gas": DEFAULT_GAS,
+        }
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "tokenfactory",
+                "mint",
+                coin,
+                "-y",
+                **(default_kwargs | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def burn_tokenfactory_denom(self, coin, **kwargs):
+        default_kwargs = {
+            "home": self.data_dir,
+            "gas_prices": DEFAULT_GAS_PRICE,
+            "gas": DEFAULT_GAS,
+        }
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "tokenfactory",
+                "burn",
+                coin,
+                "-y",
+                **(default_kwargs | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
