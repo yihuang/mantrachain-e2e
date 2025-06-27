@@ -128,40 +128,41 @@ def test_priority(mantra):
     )
 
 
-@pytest.mark.skip(reason="skipping test_native_tx_priority")
+def conver_gas_prices(base_fee, value):
+    return base_fee + (value * PRIORITY_REDUCTION) / WEI_PER_UOM
+
+
 def test_native_tx_priority(mantra):
     cli = mantra.cosmos_cli()
-    base_fee = cli.query_base_fee()
-    base_fee = int(float(base_fee) * WEI_PER_UOM)
-    print("base_fee", base_fee)
+    base_fee = float(cli.query_base_fee())
     amt = f"1000{DEFAULT_DENOM}"
     test_cases = [
         {
             "from": eth_to_bech32(ADDRS["community"]),
             "to": eth_to_bech32(ADDRS["validator"]),
             "amount": amt,
-            "gas_prices": f"{base_fee + PRIORITY_REDUCTION * 600000}{DEFAULT_DENOM}",
-            "max_priority_price": PRIORITY_REDUCTION,
+            "gas_prices": f"{conver_gas_prices(base_fee, 600000)}{DEFAULT_DENOM}",
+            "max_priority_price": 0,
         },
         {
             "from": eth_to_bech32(ADDRS["signer1"]),
             "to": eth_to_bech32(ADDRS["signer2"]),
             "amount": amt,
-            "gas_prices": f"{base_fee + PRIORITY_REDUCTION * 600000}{DEFAULT_DENOM}",
-            "max_priority_price": PRIORITY_REDUCTION * 200000,
+            "gas_prices": f"{conver_gas_prices(base_fee, 600000)}{DEFAULT_DENOM}",
+            "max_priority_price": PRIORITY_REDUCTION * 200000 / WEI_PER_UOM,
         },
         {
             "from": eth_to_bech32(ADDRS["signer2"]),
             "to": eth_to_bech32(ADDRS["signer1"]),
             "amount": amt,
-            "gas_prices": f"{base_fee + PRIORITY_REDUCTION * 400000}{DEFAULT_DENOM}",
-            "max_priority_price": PRIORITY_REDUCTION * 400000,
+            "gas_prices": f"{conver_gas_prices(base_fee, 400000)}{DEFAULT_DENOM}",
+            "max_priority_price": PRIORITY_REDUCTION * 400000 / WEI_PER_UOM,
         },
         {
             "from": eth_to_bech32(ADDRS["validator"]),
             "to": eth_to_bech32(ADDRS["community"]),
             "amount": amt,
-            "gas_prices": f"{base_fee + PRIORITY_REDUCTION * 600000}{DEFAULT_DENOM}",
+            "gas_prices": f"{conver_gas_prices(base_fee, 600000)}{DEFAULT_DENOM}",
             "max_priority_price": None,  # no extension, maximum tipFeeCap
         },
     ]
@@ -180,15 +181,12 @@ def test_native_tx_priority(mantra):
                 tx, tc["from"], max_priority_price=tc.get("max_priority_price")
             )
         )
-        gas_price = int(tc["gas_prices"].removesuffix(DEFAULT_DENOM))
-        expect_priorities.append(
-            min(
-                get_max_priority_price(tc.get("max_priority_price")),
-                gas_price - base_fee,
-            )
-            // PRIORITY_REDUCTION
+        gas_price = float(tc["gas_prices"].removesuffix(DEFAULT_DENOM))
+        res = min(
+            get_max_priority_price(tc.get("max_priority_price")), gas_price - base_fee
         )
-    assert expect_priorities == [1, 200000, 400000, 600000]
+        expect_priorities.append((res * WEI_PER_UOM) // PRIORITY_REDUCTION)
+    assert expect_priorities == [0, 200000, 400000, 600000]
 
     txhashes = []
     for tx in txs:
