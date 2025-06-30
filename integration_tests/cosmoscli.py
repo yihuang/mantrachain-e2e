@@ -181,7 +181,7 @@ class CosmosCLI:
         with tempfile.NamedTemporaryFile("w") as fp:
             json.dump(tx, fp)
             fp.flush()
-            return self.broadcast_tx(fp.name)
+            return self.broadcast_tx(fp.name, **kwargs)
 
     def sign_tx(self, tx_file, signer, **kwargs):
         default_kwargs = {

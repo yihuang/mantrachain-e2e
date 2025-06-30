@@ -97,6 +97,7 @@ def setup_mantra_test(tmp_path_factory):
         configdir / f"configs/{cfg_name}.jsonnet",
         post_init=post_init,
         chain_binary=str(upgrades / "genesis/bin/mantrachaind"),
+        deploy_factory=False,
     ) as mantra:
         yield mantra
 

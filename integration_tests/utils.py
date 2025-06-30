@@ -46,6 +46,8 @@ UOM_PER_OM = 10**6  # 10^6 uom == 1 om
 WEI_PER_UOM = 10**12  # 10^12 wei == 1 uom
 ADDRESS_PREFIX = "mantra"
 
+CREATEX_FACTORY = "0xc5570e6B97044960be06962E13248EC6b13107AE"
+
 TEST_CONTRACTS = {
     "TestERC20A": "TestERC20A.sol",
     "TestRevert": "TestRevert.sol",
@@ -56,6 +58,8 @@ TEST_CONTRACTS = {
     "Random": "Random.sol",
     "TestExploitContract": "TestExploitContract.sol",
     "BurnGas": "BurnGas.sol",
+    "MockERC20": "MockERC20.sol",
+    "CreateX": "CreateX.sol",
 }
 
 

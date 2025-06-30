@@ -6,15 +6,26 @@ from pathlib import Path
 
 import web3
 from pystarport import cluster, ports
+from web3 import AsyncHTTPProvider, AsyncWeb3
 from web3.middleware import ExtraDataToPOAMiddleware
 
 from .cosmoscli import CosmosCLI
-from .utils import supervisorctl, wait_for_block, wait_for_port, wait_for_url
+from .utils import (
+    CONTRACTS,
+    CREATEX_FACTORY,
+    KEYS,
+    deploy_contract,
+    supervisorctl,
+    wait_for_block,
+    wait_for_port,
+    wait_for_url,
+)
 
 
 class Mantra:
     def __init__(self, base_dir, chain_binary="mantrachaind"):
         self._w3 = None
+        self._async_w3 = None
         self.base_dir = base_dir
         self.config = json.loads((base_dir / "config.json").read_text())
         self.chain_binary = chain_binary
@@ -37,11 +48,22 @@ class Mantra:
             self._w3 = self.node_w3(0)
         return self._w3
 
+    @property
+    def async_w3(self, i=0):
+        if self._async_w3 is None:
+            self._async_w3 = self.async_node_w3(0)
+        return self._async_w3
+
     def node_w3(self, i=0):
         if self._use_websockets:
             return web3.Web3(web3.providers.WebsocketProvider(self.w3_ws_endpoint(i)))
         else:
             return web3.Web3(web3.providers.HTTPProvider(self.w3_http_endpoint(i)))
+
+    def async_node_w3(self, i=0):
+        return AsyncWeb3(
+            AsyncHTTPProvider(self.w3_http_endpoint(i), cache_allowed_requests=True)
+        )
 
     def base_port(self, i):
         return self.config["validators"][i]["base_port"]
@@ -106,6 +128,7 @@ def setup_custom_mantra(
     chain_binary=None,
     wait_port=True,
     relayer=cluster.Relayer.HERMES.value,
+    deploy_factory=True,
 ):
     cmd = [
         "pystarport",
@@ -137,6 +160,13 @@ def setup_custom_mantra(
             path / "mantra-canary-net-1", chain_binary=chain_binary or "mantrachaind"
         )
         wait_for_block(c.cosmos_cli(), 1)
+        if deploy_factory:
+            wait_for_port(ports.evmrpc_port(c.base_port(0)))
+            if not c.w3.eth.get_code(CREATEX_FACTORY):
+                contract = deploy_contract(
+                    c.w3, CONTRACTS["CreateX"], key=KEYS["community"]
+                )
+            print(f"CreateX deployed at {contract.address}")
         yield c
     finally:
         os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
