@@ -111,7 +111,12 @@ def exec(c):
     base_port = c.base_port(0)
     community = "community"
 
-    c.supervisorctl("start", "mantra-canary-net-1-node0", "mantra-canary-net-1-node1")
+    c.supervisorctl(
+        "start",
+        "mantra-canary-net-1-node0",
+        "mantra-canary-net-1-node1",
+        "mantra-canary-net-1-node2",
+    )
     wait_for_new_blocks(cli, 1)
 
     def do_upgrade(plan_name, target):
