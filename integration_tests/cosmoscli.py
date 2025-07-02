@@ -545,3 +545,26 @@ class CosmosCLI:
         ).json()
         assert "error" not in rsp, rsp["error"]
         return rsp["result"]["txs"]
+
+    def query_erc20_token_pair(self, token, **kwargs):
+        return json.loads(
+            self.raw(
+                "q",
+                "erc20",
+                "token-pair",
+                token,
+                home=self.data_dir,
+                **kwargs,
+            )
+        ).get("token_pair", {})
+
+    def query_erc20_token_pairs(self, **kwargs):
+        return json.loads(
+            self.raw(
+                "q",
+                "erc20",
+                "token-pairs",
+                home=self.data_dir,
+                **kwargs,
+            )
+        ).get("token_pairs", [])
