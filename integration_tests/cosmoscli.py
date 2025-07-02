@@ -568,3 +568,6 @@ class CosmosCLI:
                 **kwargs,
             )
         ).get("token_pairs", [])
+
+    def rollback(self):
+        self.raw("rollback", home=self.data_dir)
