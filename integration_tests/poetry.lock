@@ -907,6 +907,20 @@ docs = ["towncrier (>=24,<25)"]
 test = ["hypothesis (>=3.31.2)", "pytest (>=7.0.0)", "pytest-xdist (>=2.4.0)"]
 
 [[package]]
+name = "eth-contract"
+version = "0.1.0"
+description = "Add your description here"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "eth_contract-0.1.0-py3-none-any.whl", hash = "sha256:1882ec94f8071821f531f9460e25708861e61a1cd9383f08e507debdb3c37441"},
+    {file = "eth_contract-0.1.0.tar.gz", hash = "sha256:61c4610fd0f0c3aa30678e5578d7a732039751bf391a908c3da56b9c0d988955"},
+]
+
+[package.dependencies]
+web3 = ">=7.12.0"
+
+[[package]]
 name = "eth-hash"
 version = "0.7.1"
 description = "eth-hash: The Ethereum hashing function, keccak256, sometimes (erroneously) called sha3"
@@ -1913,6 +1927,24 @@ pluggy = ">=1.5,<2"
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "pygments (>=2.7.2)", "requests", "setuptools", "xmlschema"]
 
 [[package]]
+name = "pytest-asyncio"
+version = "0.25.3"
+description = "Pytest support for asyncio"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "pytest_asyncio-0.25.3-py3-none-any.whl", hash = "sha256:9e89518e0f9bd08928f97a3482fdc4e244df17529460bc038291ccaf8f85c7c3"},
+    {file = "pytest_asyncio-0.25.3.tar.gz", hash = "sha256:fc1da2cf9f125ada7e710b4ddad05518d4cee187ae9412e9ac9271003497f07a"},
+]
+
+[package.dependencies]
+pytest = ">=8.2,<9"
+
+[package.extras]
+docs = ["sphinx (>=5.3)", "sphinx-rtd-theme (>=1)"]
+testing = ["coverage (>=6.2)", "hypothesis (>=5.7.1)"]
+
+[[package]]
 name = "pytest-github-actions-annotate-failures"
 version = "0.3.0"
 description = "pytest plugin to annotate failed tests with a workflow command for GitHub Actions"
@@ -2731,4 +2763,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "f181efdcc7d5b531b123966eca8e87eb1ef4e80e1e7ee146c5376386b0238c16"
+content-hash = "704070f0abd293af2b41ddede35bdc54eb0931fda43e49c1f4405789310f0f50"

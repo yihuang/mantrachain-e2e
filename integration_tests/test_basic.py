@@ -31,7 +31,7 @@ def test_simple(mantra):
     check number of validators
     """
     cli = mantra.cosmos_cli()
-    assert len(cli.validators()) == 2
+    assert len(cli.validators()) == 3
     # check vesting account
     addr = cli.address("reserve")
     account = cli.account(addr)["account"]

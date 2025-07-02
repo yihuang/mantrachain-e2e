@@ -1,3 +1,5 @@
+import pytest
+
 from .utils import (
     DEFAULT_DENOM,
     eth_to_bech32,
@@ -25,6 +27,11 @@ def test_submit_send_enabled(mantra, tmp_path):
     rsp = cli.query_tokenfactory_denoms(addr_a)
     denom = f"factory/{addr_a}/{subdenom}"
     assert denom in rsp.get("denoms"), rsp
+    err = f"token pair with token '{denom}': key not found"
+    with pytest.raises(AssertionError) as exc:
+        cli.query_erc20_token_pair(denom)
+    assert err in str(exc.value)
+
     balance = cli.balance(addr_a, denom)
     amt = 10**6
     coin = f"{amt}{denom}"
@@ -73,14 +80,10 @@ def test_submit_send_enabled(mantra, tmp_path):
     # check mint and burn again
     coin = f"{amt}{denom}"
     rsp = cli.mint_tokenfactory_denom(coin, _from=sender, gas=gas)
-    assert rsp["code"] == 0, rsp["raw_log"]
-    current = cli.balance(addr_a, denom)
-    assert current == balance + amt
-    balance = current
-
+    assert rsp["code"] != 0
+    err_msg = f"{denom} has been disabled"
+    assert err_msg in rsp["raw_log"]
     coin = f"{burn_amt}{denom}"
     rsp = cli.burn_tokenfactory_denom(coin, _from=sender, gas=gas)
-    assert rsp["code"] == 0, rsp["raw_log"]
-    current = cli.balance(addr_a, denom)
-    assert current == balance - burn_amt
-    balance = current
+    assert rsp["code"] != 0
+    assert err_msg in rsp["raw_log"]

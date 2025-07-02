@@ -27,6 +27,7 @@ Account.enable_unaudited_hdwallet_features()
 ACCOUNTS = {
     "validator": Account.from_mnemonic(os.getenv("VALIDATOR1_MNEMONIC")),
     "validator2": Account.from_mnemonic(os.getenv("VALIDATOR2_MNEMONIC")),
+    "validator3": Account.from_mnemonic(os.getenv("VALIDATOR3_MNEMONIC")),
     "community": Account.from_mnemonic(os.getenv("COMMUNITY_MNEMONIC")),
     "signer1": Account.from_mnemonic(os.getenv("SIGNER1_MNEMONIC")),
     "signer2": Account.from_mnemonic(os.getenv("SIGNER2_MNEMONIC")),
@@ -46,6 +47,8 @@ UOM_PER_OM = 10**6  # 10^6 uom == 1 om
 WEI_PER_UOM = 10**12  # 10^12 wei == 1 uom
 ADDRESS_PREFIX = "mantra"
 
+CREATEX_FACTORY = "0x9699e95B84695B451f2aEf9Df12f73B86Bcf3e45"
+
 TEST_CONTRACTS = {
     "TestERC20A": "TestERC20A.sol",
     "TestRevert": "TestRevert.sol",
@@ -56,6 +59,7 @@ TEST_CONTRACTS = {
     "Random": "Random.sol",
     "TestExploitContract": "TestExploitContract.sol",
     "BurnGas": "BurnGas.sol",
+    "MockERC20": "MockERC20.sol",
 }
 
 
