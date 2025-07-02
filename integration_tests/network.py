@@ -11,10 +11,6 @@ from web3.middleware import ExtraDataToPOAMiddleware
 
 from .cosmoscli import CosmosCLI
 from .utils import (
-    CONTRACTS,
-    CREATEX_FACTORY,
-    KEYS,
-    deploy_contract,
     supervisorctl,
     wait_for_block,
     wait_for_port,
@@ -128,7 +124,6 @@ def setup_custom_mantra(
     chain_binary=None,
     wait_port=True,
     relayer=cluster.Relayer.HERMES.value,
-    deploy_factory=True,
 ):
     cmd = [
         "pystarport",
@@ -160,13 +155,6 @@ def setup_custom_mantra(
             path / "mantra-canary-net-1", chain_binary=chain_binary or "mantrachaind"
         )
         wait_for_block(c.cosmos_cli(), 1)
-        if deploy_factory:
-            wait_for_port(ports.evmrpc_port(c.base_port(0)))
-            if not c.w3.eth.get_code(CREATEX_FACTORY):
-                contract = deploy_contract(
-                    c.w3, CONTRACTS["CreateX"], key=KEYS["community"]
-                )
-            print(f"CreateX deployed at {contract.address}")
         yield c
     finally:
         os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
