@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -23,6 +24,7 @@ from .utils import (
     recover_community,
     send_transaction,
     w3_wait_for_new_blocks,
+    wait_for_new_blocks,
 )
 
 
@@ -544,3 +546,35 @@ def test_op_blk_hash(mantra):
     res = contract.caller.getBlockHash(height).hex()
     blk = w3.eth.get_block(height)
     assert res == blk.hash.hex(), res
+
+
+def test_tokenfactory_admin(mantra):
+    cli = mantra.cosmos_cli(2)
+    community = "community"
+    signer2 = "signer2"
+    cli.create_account(community, os.environ["COMMUNITY_MNEMONIC"])
+    cli.create_account(signer2, os.environ["SIGNER2_MNEMONIC"])
+    addr_a = cli.address(community)
+    addr_b = cli.address(signer2)
+    subdenom = "admin"
+    rsp = cli.create_tokenfactory_denom(subdenom, _from=addr_a, gas=600000)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    rsp = cli.query_tokenfactory_denoms(addr_a)
+    denom = f"factory/{addr_a}/{subdenom}"
+    assert denom in rsp.get("denoms"), rsp
+    rsp = cli.query_denom_authority_metadata(denom, _from=addr_a).get("Admin")
+    assert rsp == addr_a, rsp
+
+    rsp = cli.update_tokenfactory_admin(denom, addr_b, _from=addr_a)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    rsp = cli.query_denom_authority_metadata(denom, _from=addr_a).get("Admin")
+    assert rsp == addr_b, rsp
+
+    wait_for_new_blocks(cli, 5)
+    mantra.supervisorctl("stop", "mantra-canary-net-1-node2")
+    print(cli.prune())
+    mantra.supervisorctl("start", "mantra-canary-net-1-node2")
+
+    rsp = cli.update_tokenfactory_admin(denom, addr_a, _from=addr_b)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    wait_for_new_blocks(cli, 5)

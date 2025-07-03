@@ -571,3 +571,57 @@ class CosmosCLI:
 
     def rollback(self):
         self.raw("rollback", home=self.data_dir)
+
+    def prune(self, kind="everything"):
+        return self.raw("prune", kind, home=self.data_dir).decode()
+
+    def set_tokenfactory_denom(self, meta, **kwargs):
+        default_kwargs = {
+            "home": self.data_dir,
+            "gas_prices": DEFAULT_GAS_PRICE,
+            "gas": DEFAULT_GAS,
+        }
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "tokenfactory",
+                "set-denom-metadata",
+                meta,
+                "-y",
+                **(default_kwargs | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def query_denom_authority_metadata(self, denom, **kwargs):
+        return json.loads(
+            self.raw(
+                "q",
+                "tokenfactory",
+                "denom-authority-metadata",
+                denom,
+                home=self.data_dir,
+                **kwargs,
+            )
+        ).get("authority_metadata")
+
+    def update_tokenfactory_admin(self, denom, address, **kwargs):
+        kwargs.setdefault("gas_prices", DEFAULT_GAS_PRICE)
+        kwargs.setdefault("gas", DEFAULT_GAS)
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "tokenfactory",
+                "change-admin",
+                denom,
+                address,
+                "-y",
+                home=self.data_dir,
+                **kwargs,
+            )
+        )
+        if rsp["code"] == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
