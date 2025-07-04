@@ -61,7 +61,6 @@ TEST_CONTRACTS = {
     "TestExploitContract": "TestExploitContract.sol",
     "BurnGas": "BurnGas.sol",
     "MockERC20": "MockERC20.sol",
-    "Create2": "Create2.sol",
 }
 
 
