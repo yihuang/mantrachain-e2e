@@ -151,7 +151,7 @@ def exec(c):
 
     cli = do_upgrade("v5", target_height)
     addr_a = cli.address(community)
-    acc_b = derive_new_account(4)
+    acc_b = derive_new_account(100)
     addr_b = eth_to_bech32(acc_b.address)
 
     wait_for_port(ports.evmrpc_port(c.base_port(0)))

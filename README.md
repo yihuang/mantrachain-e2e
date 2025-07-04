@@ -54,7 +54,7 @@ This repository contains end-to-end integration tests for the MANTRA Chain proje
 - `test_subscribe.py`: Tests websocket subscriptions and log/event streaming.
 - `test_upgrade.py`: Tests cosmovisor-based binary upgrades and verifies chain functionality before and after upgrade.
 - `test_fee_history.py`: Tests eth_feeHistory with various scenarios including concurrent requests, parameter changes, and edge cases like beyond-head blocks and invalid percentiles.
-- `test_contract.py`: Tests deploy contract with create2 create3.
+- `test_contract.py`: Tests deploy contract with create2 create3 and multicall.
 
 ## Configuration
 
