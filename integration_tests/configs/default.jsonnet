@@ -2,7 +2,7 @@
   dotenv: '../../scripts/.env',
   'mantra-canary-net-1': {
     cmd: 'mantrachaind',
-    'start-flags': '--trace',
+    'start-flags': '--trace --log_level debug',
     config: {
       mempool: {
         version: 'v1',
@@ -42,10 +42,13 @@
         'broadcast-mode': 'sync',
       },
       config: {
-        db_backend: 'pebbledb',
+        db_backend: 'goleveldb',
       },
       'app-config': {
-        'app-db-backend': 'pebbledb',
+        'app-db-backend': 'goleveldb',
+        pruning: 'custom',
+        'pruning-keep-recent': '2',
+        'pruning-interval': '10',
       },
     }, {
       coins: '1000000000000000000stake,100000000000uom',
@@ -55,10 +58,13 @@
         'broadcast-mode': 'sync',
       },
       config: {
-        db_backend: 'goleveldb',
+        db_backend: 'pebbledb',
       },
       'app-config': {
-        'app-db-backend': 'goleveldb',
+        'app-db-backend': 'pebbledb',
+        pruning: 'custom',
+        'pruning-keep-recent': '2',
+        'pruning-interval': '10',
       },
     }],
     accounts: [{
@@ -100,7 +106,7 @@
           params: {
             base_fee: '0.010000000000000000',
             min_gas_price: '0.010000000000000000',
-            min_gas_multiplier: '0',
+            min_gas_multiplier: '0.5',
           },
         },
         gov: {

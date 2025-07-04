@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 import web3
+from eth_account import Account
 from eth_bloom import BloomFilter
 from eth_utils import abi, big_endian_to_int
 from hexbytes import HexBytes
@@ -550,6 +551,7 @@ def test_op_blk_hash(mantra):
 
 def test_tokenfactory_admin(mantra):
     cli = mantra.cosmos_cli(2)
+    w3 = mantra.node_w3(2)
     community = "community"
     signer2 = "signer2"
     cli.create_account(community, os.environ["COMMUNITY_MNEMONIC"])
@@ -570,10 +572,34 @@ def test_tokenfactory_admin(mantra):
     rsp = cli.query_denom_authority_metadata(denom, _from=addr_a).get("Admin")
     assert rsp == addr_b, rsp
 
+    acct = Account.from_key(KEYS[signer2])
+    contract = deploy_contract(w3, CONTRACTS["TestRevert"], key=acct.key)
+    tx = {
+        "value": 10000000000000,
+        "gas": 60000,
+        "maxFeePerGas": 50000000000,
+        "maxPriorityFeePerGas": 50000000000,
+        "chainId": 5887,
+        "to": contract.address,
+        "data": "0x12514bba0000000000000000000000000000000000000000000000004563918244f3ffff",
+        "from": acct.address,
+        "nonce": w3.eth.get_transaction_count(acct.address),
+    }
+    signed = acct.sign_transaction(tx)
+    txhash = w3.eth.send_raw_transaction(signed.raw_transaction)
+    receipt = w3.eth.wait_for_transaction_receipt(txhash)
+    assert receipt["status"] == 0, "should be a failed tx"
+
     wait_for_new_blocks(cli, 5)
     mantra.supervisorctl("stop", "mantra-canary-net-1-node2")
     print(cli.prune())
     mantra.supervisorctl("start", "mantra-canary-net-1-node2")
+
+    tx["nonce"] = w3.eth.get_transaction_count(acct.address)
+    signed = acct.sign_transaction(tx)
+    txhash = w3.eth.send_raw_transaction(signed.raw_transaction)
+    receipt = w3.eth.wait_for_transaction_receipt(txhash)
+    assert receipt["status"] == 0, "should be a failed tx"
 
     rsp = cli.update_tokenfactory_admin(denom, addr_a, _from=addr_b)
     assert rsp["code"] == 0, rsp["raw_log"]

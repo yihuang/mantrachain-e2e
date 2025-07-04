@@ -8,11 +8,7 @@ contract TestRevert {
     }
 
     function transfer(uint256 value) public payable {
-        uint256 minimal = 5 * 10 ** 18;
-        state = value;
-        if (state < minimal) {
-            revert("Not enough tokens to transfer");
-        }
+        revert("Valor incorreto para jogar");
     }
 
     function query() public view returns (uint256) {
