@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -23,6 +24,7 @@ from .utils import (
     recover_community,
     send_transaction,
     w3_wait_for_new_blocks,
+    wait_for_new_blocks,
 )
 
 
@@ -31,7 +33,7 @@ def test_simple(mantra):
     check number of validators
     """
     cli = mantra.cosmos_cli()
-    assert len(cli.validators()) == 2
+    assert len(cli.validators()) == 3
     # check vesting account
     addr = cli.address("reserve")
     account = cli.account(addr)["account"]
@@ -484,15 +486,44 @@ def test_failed_transfer_tx(mantra):
             }
 
 
-def test_multi_acc(mantra):
+def test_multisig(mantra, tmp_path):
     cli = mantra.cosmos_cli()
     cli.make_multisig("multitest1", "signer1", "signer2")
     multi_addr = cli.address("multitest1")
     signer1 = cli.address("signer1")
-    cli.transfer(signer1, multi_addr, f"1{DEFAULT_DENOM}")
+    amt = 4000
+    cli.transfer(signer1, multi_addr, f"{amt}{DEFAULT_DENOM}")
     acc = cli.account(multi_addr)
     res = cli.account_by_num(acc["account"]["value"]["account_number"])
     assert res["account_address"] == multi_addr
+
+    m_txt = tmp_path / "m.txt"
+    p1_txt = tmp_path / "p1.txt"
+    p2_txt = tmp_path / "p2.txt"
+    tx_txt = tmp_path / "tx.txt"
+    amt = 1
+    signer2 = cli.address("signer2")
+    multi_tx = cli.transfer(
+        multi_addr,
+        signer2,
+        f"{amt}{DEFAULT_DENOM}",
+        generate_only=True,
+    )
+    json.dump(multi_tx, m_txt.open("w"))
+    signature1 = cli.sign_multisig_tx(m_txt, multi_addr, "signer1")
+    json.dump(signature1, p1_txt.open("w"))
+    signature2 = cli.sign_multisig_tx(m_txt, multi_addr, "signer2")
+    json.dump(signature2, p2_txt.open("w"))
+    final_multi_tx = cli.combine_multisig_tx(
+        m_txt,
+        "multitest1",
+        p1_txt,
+        p2_txt,
+    )
+    json.dump(final_multi_tx, tx_txt.open("w"))
+    rsp = cli.broadcast_tx(tx_txt)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    assert cli.account(multi_addr)["account"]["value"]["address"] == multi_addr
 
 
 def test_textual(mantra):
@@ -515,3 +546,35 @@ def test_op_blk_hash(mantra):
     res = contract.caller.getBlockHash(height).hex()
     blk = w3.eth.get_block(height)
     assert res == blk.hash.hex(), res
+
+
+def test_tokenfactory_admin(mantra):
+    cli = mantra.cosmos_cli(2)
+    community = "community"
+    signer2 = "signer2"
+    cli.create_account(community, os.environ["COMMUNITY_MNEMONIC"])
+    cli.create_account(signer2, os.environ["SIGNER2_MNEMONIC"])
+    addr_a = cli.address(community)
+    addr_b = cli.address(signer2)
+    subdenom = "admin"
+    rsp = cli.create_tokenfactory_denom(subdenom, _from=addr_a, gas=600000)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    rsp = cli.query_tokenfactory_denoms(addr_a)
+    denom = f"factory/{addr_a}/{subdenom}"
+    assert denom in rsp.get("denoms"), rsp
+    rsp = cli.query_denom_authority_metadata(denom, _from=addr_a).get("Admin")
+    assert rsp == addr_a, rsp
+
+    rsp = cli.update_tokenfactory_admin(denom, addr_b, _from=addr_a)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    rsp = cli.query_denom_authority_metadata(denom, _from=addr_a).get("Admin")
+    assert rsp == addr_b, rsp
+
+    wait_for_new_blocks(cli, 5)
+    mantra.supervisorctl("stop", "mantra-canary-net-1-node2")
+    print(cli.prune())
+    mantra.supervisorctl("start", "mantra-canary-net-1-node2")
+
+    rsp = cli.update_tokenfactory_admin(denom, addr_a, _from=addr_b)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    wait_for_new_blocks(cli, 5)

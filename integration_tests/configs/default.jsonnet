@@ -41,10 +41,24 @@
       client_config: {
         'broadcast-mode': 'sync',
       },
+      config: {
+        db_backend: 'pebbledb',
+      },
       'app-config': {
-        mempool: {
-          'max-txs': 5000,
-        },
+        'app-db-backend': 'pebbledb',
+      },
+    }, {
+      coins: '1000000000000000000stake,100000000000uom',
+      staked: '1000000000000000000stake',
+      mnemonic: '${VALIDATOR3_MNEMONIC}',
+      client_config: {
+        'broadcast-mode': 'sync',
+      },
+      config: {
+        db_backend: 'goleveldb',
+      },
+      'app-config': {
+        'app-db-backend': 'goleveldb',
       },
     }],
     accounts: [{
@@ -70,6 +84,9 @@
           block: {
             max_bytes: '3000000',
             max_gas: '300000000',
+          },
+          abci: {
+            vote_extensions_enable_height: '1',
           },
         },
       },

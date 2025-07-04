@@ -1,0 +1,15 @@
+diff --git a/app/app.go b/app/app.go
+index cd068778..4dfd02c1 100644
+--- a/app/app.go
++++ b/app/app.go
+@@ -1183,6 +1183,10 @@ func (app *App) BeginBlocker(ctx sdk.Context) (sdk.BeginBlock, error) {
+ 
+ // EndBlocker application updates every end block
+ func (app *App) EndBlocker(ctx sdk.Context) (sdk.EndBlock, error) {
++	if ctx.BlockHeight()%10 == 0 {
++		store := ctx.KVStore(app.keys["evm"])
++		store.Set([]byte("hello"), []byte("world"))
++	}
+ 	return app.ModuleManager.EndBlock(ctx)
+ }
+ 
