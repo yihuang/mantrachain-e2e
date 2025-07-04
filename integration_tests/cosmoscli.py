@@ -595,6 +595,18 @@ class CosmosCLI:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
 
+    def query_denom_metadata(self, denom, **kwargs):
+        return json.loads(
+            self.raw(
+                "q",
+                "bank",
+                "denom-metadata",
+                denom,
+                home=self.data_dir,
+                **kwargs,
+            )
+        ).get("metadata")
+
     def query_denom_authority_metadata(self, denom, **kwargs):
         return json.loads(
             self.raw(
