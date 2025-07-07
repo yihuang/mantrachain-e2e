@@ -341,6 +341,11 @@ def deploy_contract_with_receipt(
     return w3.eth.contract(address=address, abi=info["abi"]), txreceipt
 
 
+def get_contract(w3, address, jsonfile):
+    info = json.loads(jsonfile.read_text())
+    return w3.eth.contract(address=address, abi=info["abi"])
+
+
 def create_contract_transaction(w3, jsonfile, args=(), key=KEYS["validator"]):
     """
     create contract transaction

@@ -13,6 +13,9 @@
       evm: {
         'evm-chain-id': 5887,
       },
+      grpc: {
+        'skip-check-header': true,
+      },
       'minimum-gas-prices': '0uom',
       'index-events': ['ethereum_tx.ethereumTxHash'],
       'iavl-lazy-loading': true,

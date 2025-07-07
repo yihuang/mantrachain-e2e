@@ -466,7 +466,7 @@ class CosmosCLI:
             )
         )["base_fee"]
 
-    def create_tokenfactory_denom(self, subdenom, **kwargs):
+    def create_tokenfactory_denom(self, subdenom, generate_only=False, **kwargs):
         kwargs.setdefault("gas_prices", DEFAULT_GAS_PRICE)
         kwargs.setdefault("gas", DEFAULT_GAS)
         rsp = json.loads(
@@ -475,6 +475,7 @@ class CosmosCLI:
                 "tokenfactory",
                 "create-denom",
                 subdenom,
+                "--generate-only" if generate_only else None,
                 "-y",
                 home=self.data_dir,
                 **kwargs,
@@ -491,7 +492,9 @@ class CosmosCLI:
                 "tokenfactory",
                 "denoms-from-creator",
                 creator,
+                output="json",
                 home=self.data_dir,
+                node=self.node_rpc,
                 **kwargs,
             )
         )
@@ -575,7 +578,7 @@ class CosmosCLI:
     def prune(self, kind="everything"):
         return self.raw("prune", kind, home=self.data_dir).decode()
 
-    def set_tokenfactory_denom(self, meta, **kwargs):
+    def set_tokenfactory_denom(self, meta, generate_only=False, **kwargs):
         default_kwargs = {
             "home": self.data_dir,
             "gas_prices": DEFAULT_GAS_PRICE,
@@ -587,6 +590,7 @@ class CosmosCLI:
                 "tokenfactory",
                 "set-denom-metadata",
                 meta,
+                "--generate-only" if generate_only else None,
                 "-y",
                 **(default_kwargs | kwargs),
             )
@@ -602,7 +606,9 @@ class CosmosCLI:
                 "bank",
                 "denom-metadata",
                 denom,
+                output="json",
                 home=self.data_dir,
+                node=self.node_rpc,
                 **kwargs,
             )
         ).get("metadata")
@@ -614,12 +620,14 @@ class CosmosCLI:
                 "tokenfactory",
                 "denom-authority-metadata",
                 denom,
+                output="json",
                 home=self.data_dir,
+                node=self.node_rpc,
                 **kwargs,
             )
         ).get("authority_metadata")
 
-    def update_tokenfactory_admin(self, denom, address, **kwargs):
+    def update_tokenfactory_admin(self, denom, address, generate_only=False, **kwargs):
         kwargs.setdefault("gas_prices", DEFAULT_GAS_PRICE)
         kwargs.setdefault("gas", DEFAULT_GAS)
         rsp = json.loads(
@@ -629,11 +637,12 @@ class CosmosCLI:
                 "change-admin",
                 denom,
                 address,
+                "--generate-only" if generate_only else None,
                 "-y",
                 home=self.data_dir,
                 **kwargs,
             )
         )
-        if rsp["code"] == 0:
+        if rsp.get("code") == 0:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp

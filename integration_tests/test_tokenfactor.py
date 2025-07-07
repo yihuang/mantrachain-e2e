@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from pathlib import Path
 
 from .utils import wait_for_new_blocks
@@ -13,8 +14,8 @@ def test_tokenfactory_admin(mantra, tmp_path):
     cli.create_account(signer2, os.environ["SIGNER2_MNEMONIC"])
     addr_a = cli.address(community)
     addr_b = cli.address(signer2)
-    subdenom = "admin"
-    rsp = cli.create_tokenfactory_denom(subdenom, _from=addr_a, gas=600000)
+    subdenom = f"admin{time.time()}"
+    rsp = cli.create_tokenfactory_denom(subdenom, _from=addr_a, gas=620000)
     assert rsp["code"] == 0, rsp["raw_log"]
     rsp = cli.query_tokenfactory_denoms(addr_a)
     denom = f"factory/{addr_a}/{subdenom}"
