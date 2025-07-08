@@ -47,8 +47,6 @@ UOM_PER_OM = 10**6  # 10^6 uom == 1 om
 WEI_PER_UOM = 10**12  # 10^12 wei == 1 uom
 ADDRESS_PREFIX = "mantra"
 
-CREATEX_FACTORY = "0x9699e95B84695B451f2aEf9Df12f73B86Bcf3e45"
-
 TEST_CONTRACTS = {
     "TestERC20A": "TestERC20A.sol",
     "TestRevert": "TestRevert.sol",
@@ -60,6 +58,7 @@ TEST_CONTRACTS = {
     "TestExploitContract": "TestExploitContract.sol",
     "BurnGas": "BurnGas.sol",
     "MockERC20": "MockERC20.sol",
+    "WETH9": "WETH9.sol",
 }
 
 
@@ -340,6 +339,11 @@ def deploy_contract_with_receipt(
         ), f"exp {exp_gas_used}, got {txreceipt.gasUsed}"
     address = txreceipt.contractAddress
     return w3.eth.contract(address=address, abi=info["abi"]), txreceipt
+
+
+def get_contract(w3, address, jsonfile):
+    info = json.loads(jsonfile.read_text())
+    return w3.eth.contract(address=address, abi=info["abi"])
 
 
 def create_contract_transaction(w3, jsonfile, args=(), key=KEYS["validator"]):
