@@ -216,6 +216,8 @@ class CosmosCLI:
 
     def create_account(self, name, mnemonic=None, **kwargs):
         "create new keypair in node's keyring"
+        if kwargs.get("coin_type") == 60:
+            kwargs["key_type"] = "eth_secp256k1"
         default_kwargs = {
             "home": self.data_dir,
             "output": "json",
