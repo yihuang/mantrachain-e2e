@@ -10,8 +10,8 @@ def test_tokenfactory_admin(mantra, tmp_path):
     cli = mantra.cosmos_cli(2)
     community = "community"
     signer2 = "signer2"
-    cli.create_account(community, os.environ["COMMUNITY_MNEMONIC"])
-    cli.create_account(signer2, os.environ["SIGNER2_MNEMONIC"])
+    cli.create_account(community, os.environ["COMMUNITY_MNEMONIC"], coin_type=60)
+    cli.create_account(signer2, os.environ["SIGNER2_MNEMONIC"], coin_type=60)
     addr_a = cli.address(community)
     addr_b = cli.address(signer2)
     subdenom = f"admin{time.time()}"

@@ -420,6 +420,7 @@ def recover_community(cli, tmp_path):
         "community",
         mnemonic=os.getenv("COMMUNITY_MNEMONIC"),
         home=tmp_path,
+        coin_type=60,
     )["address"]
 
 

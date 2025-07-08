@@ -31,19 +31,15 @@
       },
     },
     validators: [{
+      'coin-type': 60,
       coins: '1000000000000000000stake,100000000000uom',
       staked: '1000000000000000000stake',
       mnemonic: '${VALIDATOR1_MNEMONIC}',
-      client_config: {
-        'broadcast-mode': 'sync',
-      },
     }, {
+      'coin-type': 60,
       coins: '1000000000000000000stake,100000000000uom',
       staked: '1000000000000000000stake',
       mnemonic: '${VALIDATOR2_MNEMONIC}',
-      client_config: {
-        'broadcast-mode': 'sync',
-      },
       config: {
         db_backend: 'pebbledb',
       },
@@ -51,12 +47,10 @@
         'app-db-backend': 'pebbledb',
       },
     }, {
+      'coin-type': 60,
       coins: '1000000000000000000stake,100000000000uom',
       staked: '1000000000000000000stake',
       mnemonic: '${VALIDATOR3_MNEMONIC}',
-      client_config: {
-        'broadcast-mode': 'sync',
-      },
       config: {
         db_backend: 'goleveldb',
       },
@@ -65,18 +59,22 @@
       },
     }],
     accounts: [{
+      'coin-type': 60,
       name: 'community',
       coins: '100000000000uom',
       mnemonic: '${COMMUNITY_MNEMONIC}',
     }, {
+      'coin-type': 60,
       name: 'signer1',
       coins: '20000000000000000000000uom',
       mnemonic: '${SIGNER1_MNEMONIC}',
     }, {
+      'coin-type': 60,
       name: 'signer2',
       coins: '30000000000000000000000uom',
       mnemonic: '${SIGNER2_MNEMONIC}',
     }, {
+      'coin-type': 60,
       name: 'reserve',
       coins: '100000000000uom',
       vesting: '60s',

@@ -2,6 +2,12 @@ local config = import 'default.jsonnet';
 
 config {
   'mantra-canary-net-1'+: {
+    validators: [validator {
+      'coin-type':: validator['coin-type'],
+    } for validator in super.validators],
+    accounts: [account {
+      'coin-type':: account['coin-type'],
+    } for account in super.accounts],
     genesis+: {
       consensus_params: {
         block: {
