@@ -648,3 +648,99 @@ class CosmosCLI:
         if rsp.get("code") == 0:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
+
+    def delegate_amount(self, to_addr, amount, from_addr, gas_price=None):
+        if gas_price is None:
+            return json.loads(
+                self.raw(
+                    "tx",
+                    "staking",
+                    "delegate",
+                    to_addr,
+                    amount,
+                    "-y",
+                    home=self.data_dir,
+                    from_=from_addr,
+                    keyring_backend="test",
+                    chain_id=self.chain_id,
+                    node=self.node_rpc,
+                )
+            )
+        else:
+            return json.loads(
+                self.raw(
+                    "tx",
+                    "staking",
+                    "delegate",
+                    to_addr,
+                    amount,
+                    "-y",
+                    home=self.data_dir,
+                    from_=from_addr,
+                    keyring_backend="test",
+                    chain_id=self.chain_id,
+                    node=self.node_rpc,
+                    gas_prices=gas_price,
+                )
+            )
+
+    def set_withdraw_addr(self, bech32_addr, **kwargs):
+        kwargs.setdefault("gas_prices", DEFAULT_GAS_PRICE)
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "distribution",
+                "set-withdraw-addr",
+                "-y",
+                bech32_addr,
+                home=self.data_dir,
+                keyring_backend="test",
+                chain_id=self.chain_id,
+                node=self.node_rpc,
+                **kwargs,
+            )
+        )
+        if rsp["code"] == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def fund_validator_rewards_pool(self, val_addr, amt, **kwargs):
+        kwargs.setdefault("gas_prices", DEFAULT_GAS_PRICE)
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "distribution",
+                "fund-validator-rewards-pool",
+                "-y",
+                val_addr,
+                amt,
+                home=self.data_dir,
+                keyring_backend="test",
+                chain_id=self.chain_id,
+                node=self.node_rpc,
+                **kwargs,
+            )
+        )
+        if rsp["code"] == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def withdraw_rewards(self, val_addr, **kwargs):
+        kwargs.setdefault("gas_prices", DEFAULT_GAS_PRICE)
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "distribution",
+                "withdraw-rewards",
+                "-y",
+                val_addr,
+                home=self.data_dir,
+                keyring_backend="test",
+                chain_id=self.chain_id,
+                node=self.node_rpc,
+                **kwargs,
+            )
+        )
+        if rsp["code"] == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
