@@ -7,7 +7,7 @@ from .network import setup_custom_mantra
 
 @pytest.fixture(scope="module")
 def custom_mantra(tmp_path_factory):
-    path = tmp_path_factory.mktemp("fee-history")
+    path = tmp_path_factory.mktemp("patch")
     yield from setup_custom_mantra(
         path, 26700, Path(__file__).parent / "configs/patch.jsonnet"
     )
