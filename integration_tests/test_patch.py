@@ -1,26 +1,27 @@
-from pathlib import Path
-
-import pytest
-
-from .network import setup_custom_mantra
+from .utils import eth_to_bech32, module_address, submit_gov_proposal
 
 
-@pytest.fixture(scope="module")
-def custom_mantra(tmp_path_factory):
-    path = tmp_path_factory.mktemp("patch")
-    yield from setup_custom_mantra(
-        path, 26700, Path(__file__).parent / "configs/patch.jsonnet"
-    )
-
-
-@pytest.mark.skip(reason="skipping integer overflow test")
-def test_int_overflow(custom_mantra):
-    cli = custom_mantra.cosmos_cli()
+def test_int_overflow(mantra, tmp_path):
+    cli = mantra.cosmos_cli()
     name = "validator"
     bech32_addr = cli.address(name)
     val_addr = cli.address(name, "val")
     rsp = cli.set_withdraw_addr(bech32_addr, from_=name)
     assert rsp["code"] == 0, rsp["raw_log"]
+    assert not cli.query_disabled_list()
+    msg_type_urls = ["/cosmos.distribution.v1beta1.MsgDepositValidatorRewardsPool"]
+    submit_gov_proposal(
+        mantra,
+        tmp_path,
+        messages=[
+            {
+                "@type": "/cosmos.circuit.v1.MsgTripCircuitBreaker",
+                "authority": eth_to_bech32(module_address("gov")),
+                "msg_type_urls": msg_type_urls,
+            }
+        ],
+    )
+    assert cli.query_disabled_list() == msg_type_urls
 
     # fund validator rewards pool
     denom = "utesttest"
@@ -30,25 +31,5 @@ def test_int_overflow(custom_mantra):
         delegation_amt_w_denom,
         from_=name,
     )
-    assert rsp["code"] == 0, rsp["raw_log"]
-
-    balance = cli.balance(bech32_addr, denom=denom)
-    # withdraw rewards
-    cli.withdraw_rewards(val_addr, from_=name)
-    balance = cli.balance(bech32_addr, denom=denom)
-
-    # stake to this validator
-    cli.delegate_amount(
-        val_addr,
-        f"{10000}stake",
-        bech32_addr,
-    )
-
-    # fund validator rewards pool again
-    rsp = cli.fund_validator_rewards_pool(
-        val_addr,
-        f"{balance}{denom}",
-        from_=name,
-    )
     assert rsp["code"] != 0
-    assert "deposit is too large: Int overflow" in rsp["raw_log"]
+    assert "tx type not allowed" in rsp["raw_log"]

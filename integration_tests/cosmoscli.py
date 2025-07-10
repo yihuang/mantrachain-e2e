@@ -744,3 +744,16 @@ class CosmosCLI:
         if rsp["code"] == 0:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
+
+    def query_disabled_list(self, **kwargs):
+        return json.loads(
+            self.raw(
+                "q",
+                "circuit",
+                "disabled-list",
+                output="json",
+                home=self.data_dir,
+                node=self.node_rpc,
+                **kwargs,
+            )
+        ).get("disabled_list")
