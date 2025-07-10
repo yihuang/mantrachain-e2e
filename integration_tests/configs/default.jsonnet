@@ -32,13 +32,13 @@
     },
     validators: [{
       'coin-type': 60,
-      coins: '1000000000000000000stake,100000000000uom',
-      staked: '1000000000000000000stake',
+      coins: '100001000000uom',
+      staked: '1000000uom',
       mnemonic: '${VALIDATOR1_MNEMONIC}',
     }, {
       'coin-type': 60,
-      coins: '1000000000000000000stake,100000000000uom',
-      staked: '1000000000000000000stake',
+      coins: '100001000000uom',
+      staked: '1000000uom',
       mnemonic: '${VALIDATOR2_MNEMONIC}',
       config: {
         db_backend: 'pebbledb',
@@ -48,8 +48,8 @@
       },
     }, {
       'coin-type': 60,
-      coins: '1000000000000000000stake,100000000000uom',
-      staked: '1000000000000000000stake',
+      coins: '100001000000uom',
+      staked: '1000000uom',
       mnemonic: '${VALIDATOR3_MNEMONIC}',
       config: {
         db_backend: 'goleveldb',
@@ -121,6 +121,11 @@
                 amount: '2',
               },
             ],
+          },
+        },
+        staking: {
+          params: {
+            bond_denom: 'uom',
           },
         },
       },
