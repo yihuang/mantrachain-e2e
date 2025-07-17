@@ -57,8 +57,6 @@ TEST_CONTRACTS = {
     "Random": "Random.sol",
     "TestExploitContract": "TestExploitContract.sol",
     "BurnGas": "BurnGas.sol",
-    "MockERC20": "MockERC20.sol",
-    "WETH9": "WETH9.sol",
 }
 
 
