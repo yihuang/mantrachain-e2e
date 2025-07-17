@@ -2,8 +2,15 @@ import json
 from pathlib import Path
 
 import pytest
-from eth_contract.create2 import CREATE2_FACTORY, create2_address, create2_deploy
+from eth_contract.contract import Contract
+from eth_contract.create2 import create2_address, create2_deploy
 from eth_contract.create3 import CREATEX_FACTORY, create3_address, create3_deploy
+from eth_contract.deploy_utils import (
+    ensure_create2_deployed,
+    ensure_createx_deployed,
+    ensure_deployed_by_create2,
+    ensure_multicall3_deployed,
+)
 from eth_contract.erc20 import ERC20
 from eth_contract.multicall3 import (
     MULTICALL3,
@@ -14,16 +21,14 @@ from eth_contract.multicall3 import (
 from eth_contract.utils import (
     ZERO_ADDRESS,
     balance_of,
-    deploy_presigned_tx,
     get_initcode,
 )
 from eth_contract.weth import WETH
-from eth_typing import ChecksumAddress
-from eth_utils import to_checksum_address
 from web3 import AsyncWeb3
 from web3.types import Wei
 
 from .network import setup_custom_mantra
+from .utils import ADDRS
 
 
 @pytest.fixture(scope="module")
@@ -32,52 +37,6 @@ def mantra_replay(tmp_path_factory):
     yield from setup_custom_mantra(
         path, 26600, Path(__file__).parent / "configs/allow_replay.jsonnet"
     )
-
-
-async def ensure_create2_deployed(w3: AsyncWeb3):
-    "https://github.com/Arachnid/deterministic-deployment-proxy"
-    deployer_address = to_checksum_address("0x3fab184622dc19b6109349b94811493bf2a45362")
-    tx = bytes.fromhex(
-        Path(__file__).parent.joinpath("txs/create2.tx").read_text().strip()[2:]
-    )
-    await deploy_presigned_tx(
-        w3, tx, deployer_address, CREATE2_FACTORY, fee=Wei(10**16)
-    )
-
-
-async def ensure_multicall3_deployed(w3: AsyncWeb3):
-    "https://github.com/mds1/multicall3#new-deployments"
-    deployer_address = to_checksum_address("0x05f32b3cc3888453ff71b01135b34ff8e41263f2")
-    tx = bytes.fromhex(
-        Path(__file__).parent.joinpath("txs/multicall3.tx").read_text().strip()[2:]
-    )
-    await deploy_presigned_tx(w3, tx, deployer_address, MULTICALL3_ADDRESS)
-
-
-async def ensure_createx_deployed(w3: AsyncWeb3):
-    "https://github.com/pcaversaccio/createx#new-deployments"
-    deployer_address = to_checksum_address("0xeD456e05CaAb11d66C4c797dD6c1D6f9A7F352b5")
-    tx = bytes.fromhex(
-        Path(__file__).parent.joinpath("txs/createx.tx").read_text().strip()[2:]
-    )
-    await deploy_presigned_tx(
-        w3, tx, deployer_address, CREATEX_FACTORY, fee=Wei(3 * 10**17)
-    )
-
-
-async def ensure_deployed_by_create2(
-    w3: AsyncWeb3, initcode: bytes, salt: bytes | int = 0
-) -> ChecksumAddress:
-    user = (await w3.eth.accounts)[0]
-    if isinstance(salt, int):
-        salt = salt.to_bytes(32, "big")
-    addr = create2_address(initcode, salt)
-    if await w3.eth.get_code(addr):
-        print(f"Contract already deployed at {addr}")
-        return addr
-
-    print(f"Deploying contract at {addr} using create2")
-    return await create2_deploy(w3, user, initcode, salt=salt, value=Wei(0))
 
 
 MockERC20_ARTIFACT = json.loads(
@@ -155,7 +114,7 @@ async def test_flow(mantra_replay):
     assert await balance_of(w3, ZERO_ADDRESS, owner) == before - fee
 
     # test_batch_call
-    users = (await w3.eth.accounts)[:10]
+    users = [ADDRS[key] for key in ["community", "signer1", "signer2"]]
     amount = 1000
     amount_all = amount * len(users)
 
@@ -169,3 +128,85 @@ async def test_flow(mantra_replay):
         ]
     ).transact(w3, users[0], value=amount_all)
     assert all(x == amount for x in await multicall(w3, balances))
+
+    for user in users:
+        await ERC20.fns.approve(MULTICALL3_ADDRESS, amount).transact(
+            w3, user, to=WETH_ADDRESS
+        )
+
+    await MULTICALL3.fns.aggregate3Value(
+        [
+            Call3Value(
+                WETH_ADDRESS,
+                data=ERC20.fns.transferFrom(user, MULTICALL3_ADDRESS, amount).data,
+            )
+            for user in users
+        ]
+        + [
+            Call3Value(
+                WETH_ADDRESS,
+                data=weth.fns.transferFrom(
+                    MULTICALL3_ADDRESS, users[0], amount_all
+                ).data,
+            ),
+        ]
+    ).transact(w3, users[0])
+    await weth.fns.withdraw(amount_all).transact(w3, users[0], to=WETH_ADDRESS)
+    assert all(x == 0 for x in await multicall(w3, balances))
+    assert await balance_of(w3, WETH_ADDRESS, MULTICALL3_ADDRESS) == 0
+
+    # test_multicall3_router
+    amount_all = amount * len(users)
+    router = Contract(MULTICALL3ROUTER_ARTIFACT["abi"])
+    multicall3 = MULTICALL3ROUTER
+
+    balances = [(WETH_ADDRESS, ERC20.fns.balanceOf(user)) for user in users]
+    assert all(x == 0 for x in await multicall(w3, balances))
+
+    before = await balance_of(w3, ZERO_ADDRESS, users[0])
+
+    # convert amount_all into WETH and distribute to users
+    receipt = await MULTICALL3.fns.aggregate3Value(
+        [Call3Value(WETH_ADDRESS, False, amount_all, WETH.fns.deposit().data)]
+        + [
+            Call3Value(WETH_ADDRESS, False, 0, ERC20.fns.transfer(user, amount).data)
+            for user in users
+        ]
+    ).transact(w3, users[0], to=multicall3, value=amount_all)
+    before -= receipt["effectiveGasPrice"] * receipt["gasUsed"]
+    # check users's weth balances
+    assert all(x == amount for x in await multicall(w3, balances))
+
+    # approve multicall3 to transfer WETH on behalf of users
+    for i, user in enumerate(users):
+        receipt = await ERC20.fns.approve(multicall3, amount).transact(
+            w3, user, to=WETH_ADDRESS
+        )
+        if i == 0:
+            before -= receipt["effectiveGasPrice"] * receipt["gasUsed"]
+
+    # transfer WETH from all users to multicall3, withdraw it,
+    # and send back to users[0]
+    receipt = await MULTICALL3.fns.aggregate3Value(
+        [
+            Call3Value(
+                WETH_ADDRESS, data=ERC20.fns.transferFrom(user, multicall3, amount).data
+            )
+            for user in users
+        ]
+        + [
+            Call3Value(WETH_ADDRESS, data=WETH.fns.withdraw(amount_all).data),
+            Call3Value(
+                multicall3,
+                data=router.fns.sellToPool(ZERO_ADDRESS, 10000, users[0], 0, b"").data,
+            ),
+        ]
+    ).transact(w3, users[0], to=multicall3)
+    before -= receipt["effectiveGasPrice"] * receipt["gasUsed"]
+
+    assert all(x == 0 for x in await multicall(w3, balances))
+    assert await balance_of(w3, WETH_ADDRESS, multicall3) == 0
+    assert await balance_of(w3, ZERO_ADDRESS, multicall3) == 0
+
+    # user get all funds back other than gas fees
+    assert await balance_of(w3, ZERO_ADDRESS, users[0]) == before
