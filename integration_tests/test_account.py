@@ -37,6 +37,8 @@ def test_transaction_count(mantra, connect_mantra):
     [n1, n2] = [w3.eth.get_transaction_count(receiver, b) for b in [blk, "latest"]]
     assert n0 == n1
     assert n0 == n2
+    # TODO: add after https://github.com/cosmos/evm/pull/312
+    # assert_duplicate(connect_mantra.rpc, receipt.blockNumber)
 
 
 @pytest.mark.connect

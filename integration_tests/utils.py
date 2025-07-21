@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 import bech32
 import eth_utils
+import requests
 import rlp
 from dateutil.parser import isoparse
 from dotenv import load_dotenv
@@ -600,3 +601,15 @@ def adjust_base_fee(parent_fee, gas_limit, gas_used, params={}):
         return max(parent_fee - delta, int(float(params.get("min_gas_price", 0))))
     else:
         return parent_fee + max(delta, 1)
+
+
+def assert_duplicate(rpc, height):
+    res = requests.get(f"{rpc}/block_results?height={height}").json().get("result")
+    res = next((tx for tx in res.get("txs_results") if tx["code"] == 0), None)
+    values = set()
+    for event in res.get("events", []):
+        if event["type"] != "transfer":
+            continue
+        str = json.dumps(event)
+        assert str not in values, f"dup event find: {str}"
+        values.add(str)
