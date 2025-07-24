@@ -30,6 +30,8 @@ from web3.types import Wei
 from .network import setup_custom_mantra
 from .utils import ADDRS
 
+pytestmark = pytest.mark.asyncio
+
 
 @pytest.fixture(scope="module")
 def mantra_replay(tmp_path_factory):
@@ -65,7 +67,6 @@ async def deploy_weth(w3: AsyncWeb3) -> None:
     assert address == WETH_ADDRESS, f"Expected {WETH_ADDRESS}, got {address}"
 
 
-@pytest.mark.asyncio
 async def test_flow(mantra_replay):
     w3 = mantra_replay.async_w3
     await ensure_create2_deployed(w3)
