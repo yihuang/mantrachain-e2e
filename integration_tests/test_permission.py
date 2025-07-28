@@ -1,9 +1,11 @@
 import asyncio
 from collections import defaultdict
 from itertools import groupby
+from pathlib import Path
 
 import pytest
 
+from .network import setup_custom_mantra
 from .utils import (
     DEFAULT_DENOM,
     assert_transfer,
@@ -12,6 +14,14 @@ from .utils import (
 )
 
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture(scope="module")
+def custom_mantra(tmp_path_factory):
+    path = tmp_path_factory.mktemp("permission")
+    yield from setup_custom_mantra(
+        path, 26700, Path(__file__).parent / "configs/accounts.jsonnet"
+    )
 
 
 async def transfer(cli, user, addr_b):
@@ -35,8 +45,8 @@ async def execute_user_transfers(cli, user_modules):
     return results
 
 
-async def test_transfers_not_allowed(mantra):
-    cli = mantra.cosmos_cli()
+async def test_transfers_not_allowed(custom_mantra):
+    cli = custom_mantra.cosmos_cli()
     modules = [
         "bonded_tokens_pool",
         "distribution",
