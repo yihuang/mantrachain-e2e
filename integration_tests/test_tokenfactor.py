@@ -22,7 +22,6 @@ def test_tokenfactory_admin(mantra, connect_mantra, tmp_path, need_prune=True):
     rsp = cli.query_tokenfactory_denoms(addr_a)
     denom = f"factory/{addr_a}/{subdenom}"
     assert denom in rsp.get("denoms"), rsp
-    symbol = "DLD"
     meta = {
         "denom_units": [{"denom": denom}],
         "base": denom,
@@ -38,6 +37,7 @@ def test_tokenfactory_admin(mantra, connect_mantra, tmp_path, need_prune=True):
         cli.query_denom_authority_metadata(f"invalid{denom}", _from=addr_a).get("Admin")
 
     name = "Dubai"
+    symbol = "DLD"
     meta = {
         "description": name,
         "denom_units": [{"denom": denom}, {"denom": symbol, "exponent": 6}],
