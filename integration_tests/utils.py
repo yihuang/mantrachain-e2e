@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import configparser
 import hashlib
 import json
@@ -9,6 +10,7 @@ import socket
 import subprocess
 import sys
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import takewhile
 from pathlib import Path
@@ -296,6 +298,21 @@ def find_log_event_attrs(events, ev_type, cond=None):
     return None
 
 
+def find_duplicate(attributes):
+    res = set()
+    key = attributes[0]["key"]
+    for attribute in attributes:
+        if attribute["key"] == key:
+            value0 = attribute["value"]
+        elif attribute["key"] == "amount":
+            amount = attribute["value"]
+            value_pair = f"{value0}:{amount}"
+            if value_pair in res:
+                return value_pair
+            res.add(value_pair)
+    return None
+
+
 def sign_transaction(w3, tx, key=KEYS["validator"]):
     "fill default fields and sign"
     acct = Account.from_key(key)
@@ -473,6 +490,12 @@ def assert_transfer(cli, addr_a, addr_b, amt=1):
 def denom_to_erc20_address(denom):
     denom_hash = hashlib.sha256(denom.encode()).digest()
     return to_checksum_address("0x" + denom_hash[-20:].hex())
+
+
+def escrow_address(port, channel):
+    escrow_addr_version = "ics20-1"
+    pre_image = f"{escrow_addr_version}\x00{port}/{channel}"
+    return eth_to_bech32(hashlib.sha256(pre_image.encode()).digest()[:20].hex())
 
 
 def assert_create_tokenfactory_denom(cli, subdenom, is_legacy=False, **kwargs):
@@ -766,3 +789,25 @@ def do_multisig(cli, tmp_path, signer1_name, signer2_name, multisig_name):
     rsp = cli.broadcast_tx(tx_txt)
     assert rsp["code"] == 0, rsp["raw_log"]
     assert cli.account(multi_addr)["account"]["value"]["address"] == multi_addr
+
+
+def decode_base64(raw):
+    try:
+        return base64.b64decode(raw.encode()).decode()
+    except Exception:
+        return raw
+
+
+def parse_events_rpc(events):
+    result = defaultdict(dict)
+    for ev in events:
+        for attr in ev["attributes"]:
+            if attr["key"] is None:
+                continue
+            key = decode_base64(attr["key"])
+            if attr["value"] is not None:
+                value = decode_base64(attr["value"])
+            else:
+                value = None
+            result[ev["type"]][key] = value
+    return result
