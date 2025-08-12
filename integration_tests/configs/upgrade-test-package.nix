@@ -80,6 +80,7 @@ let
     "v5.0.0-rc2" = mkMantrachain { version = "v5.0.0-rc2"; };
     "v5.0.0-rc3" = mkMantrachain { version = "v5.0.0-rc3"; };
     "v5.0.0-rc4" = mkMantrachain { version = "v5.0.0-rc4"; };
+    "v5.0.0-rc5" = pkgs.callPackage ../../nix/mantrachain { };
   };
 
 in

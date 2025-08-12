@@ -17,6 +17,7 @@ from .upgrade_utils import (
 from .utils import (
     CONTRACTS,
     DEFAULT_FEE,
+    DEFAULT_GAS_PRICE,
     assert_create_tokenfactory_denom,
     assert_transfer,
     deploy_contract,
@@ -192,6 +193,10 @@ def exec(c, tmp_path):
     target_height = height + 15
     cli = do_upgrade(c, "v5.0.0-rc4", target_height)
     check_basic_eth_tx(c.w3, contract, acc_b, addr_a, "world!!!")
+
+    height = cli.block_height()
+    target_height = height + 15
+    cli = do_upgrade(c, "v5.0.0-rc5", target_height, gas_prices=DEFAULT_GAS_PRICE)
 
     res = cli.query_proposals()
     assert len(res) > 0, res

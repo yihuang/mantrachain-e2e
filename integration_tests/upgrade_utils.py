@@ -20,7 +20,7 @@ from .utils import (
 )
 
 
-def do_upgrade(c, plan_name, target):
+def do_upgrade(c, plan_name, target, gas_prices="0.8uom"):
     print(f"upgrade {plan_name} height: {target}")
     cli = c.cosmos_cli()
     base_port = c.base_port(0)
@@ -35,7 +35,7 @@ def do_upgrade(c, plan_name, target):
             "deposit": "1uom",
         },
         gas=300000,
-        gas_prices="0.8uom",
+        gas_prices=gas_prices,
     )
     assert rsp["code"] == 0, rsp["raw_log"]
     approve_proposal(c, rsp["events"])
