@@ -75,6 +75,7 @@ TEST_CONTRACTS = {
     "TestExploitContract": "TestExploitContract.sol",
     "BurnGas": "BurnGas.sol",
     "CounterWithCallbacks": "CounterWithCallbacks.sol",
+    "ERC20MinterBurnerDecimals": "ERC20MinterBurnerDecimals.sol",
 }
 
 WETH_SALT = 999
@@ -414,8 +415,8 @@ def deploy_contract_with_receipt(
     return w3.eth.contract(address=address, abi=info["abi"]), txreceipt
 
 
-async def deploy_contract_async(
-    w3: AsyncWeb3, jsonfile, args=(), key=KEYS["validator"], exp_gas_used=None
+async def build_deploy_contract_async(
+    w3: AsyncWeb3, jsonfile, args=(), key=KEYS["validator"]
 ):
     acct = Account.from_key(key)
     info = json.loads(jsonfile.read_text())
@@ -426,13 +427,20 @@ async def deploy_contract_async(
         bytecode = info["byte"]
     contract = w3.eth.contract(abi=info["abi"], bytecode=bytecode)
     tx = await contract.constructor(*args).build_transaction({"from": acct.address})
-    txreceipt = await send_transaction_async(w3, acct.address, **tx)
+    return tx, info["abi"]
+
+
+async def deploy_contract_async(
+    w3: AsyncWeb3, jsonfile, args=(), key=KEYS["validator"], exp_gas_used=None
+):
+    tx, abi = await build_deploy_contract_async(w3, jsonfile, args, key)
+    txreceipt = await send_transaction_async(w3, tx["from"], **tx)
     if exp_gas_used is not None:
         assert (
             exp_gas_used == txreceipt.gasUsed
         ), f"exp {exp_gas_used}, got {txreceipt.gasUsed}"
     address = txreceipt.contractAddress
-    return w3.eth.contract(address=address, abi=info["abi"])
+    return w3.eth.contract(address=address, abi=abi)
 
 
 def get_contract(w3, address, jsonfile):
