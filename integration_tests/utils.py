@@ -945,50 +945,40 @@ def address_to_bytes32(addr) -> HexBytes:
 
 
 async def assert_tf_flow(w3, receiver, signer1, signer2, tf_erc20_addr):
-    # signer1 transfer 5ibc_erc20 to receiver
-    ibc_erc20_transfer_amt = 5
-    signer1_balance_eth_bf = await ERC20.fns.balanceOf(signer1).call(
-        w3, to=tf_erc20_addr
-    )
-    signer2_balance_eth_bf = await ERC20.fns.balanceOf(signer2).call(
-        w3, to=tf_erc20_addr
-    )
-    receiver_balance_eth_bf = await ERC20.fns.balanceOf(receiver).call(
-        w3, to=tf_erc20_addr
-    )
-    await ERC20.fns.transfer(receiver, ibc_erc20_transfer_amt).transact(
+    # signer1 transfer 5tf_erc20 to receiver
+    transfer_amt = 5
+    signer1_balance_bf = await ERC20.fns.balanceOf(signer1).call(w3, to=tf_erc20_addr)
+    signer2_balance_bf = await ERC20.fns.balanceOf(signer2).call(w3, to=tf_erc20_addr)
+    receiver_balance_bf = await ERC20.fns.balanceOf(receiver).call(w3, to=tf_erc20_addr)
+    await ERC20.fns.transfer(receiver, transfer_amt).transact(
         w3, signer1, to=tf_erc20_addr, gasPrice=(await w3.eth.gas_price)
     )
-    signer1_balance_eth = await ERC20.fns.balanceOf(signer1).call(w3, to=tf_erc20_addr)
-    assert signer1_balance_eth == signer1_balance_eth_bf - ibc_erc20_transfer_amt
-    signer1_balance_eth_bf = signer1_balance_eth
+    signer1_balance = await ERC20.fns.balanceOf(signer1).call(w3, to=tf_erc20_addr)
+    assert signer1_balance == signer1_balance_bf - transfer_amt
+    signer1_balance_bf = signer1_balance
 
-    receiver_balance_eth = await ERC20.fns.balanceOf(receiver).call(
-        w3, to=tf_erc20_addr
-    )
-    assert receiver_balance_eth == receiver_balance_eth_bf + ibc_erc20_transfer_amt
-    receiver_balance_eth_bf = receiver_balance_eth
+    receiver_balance = await ERC20.fns.balanceOf(receiver).call(w3, to=tf_erc20_addr)
+    assert receiver_balance == receiver_balance_bf + transfer_amt
+    receiver_balance_bf = receiver_balance
 
-    # signer1 approve 2ibc_erc20 to signer2
-    ibc_erc20_approve_amt = 2
-    await ERC20.fns.approve(signer2, ibc_erc20_approve_amt).transact(
+    # signer1 approve 2tf_erc20 to signer2
+    approve_amt = 2
+    await ERC20.fns.approve(signer2, approve_amt).transact(
         w3, signer1, to=tf_erc20_addr, gasPrice=(await w3.eth.gas_price)
     )
     allowance = await ERC20.fns.allowance(signer1, signer2).call(w3, to=tf_erc20_addr)
-    assert allowance == ibc_erc20_approve_amt
+    assert allowance == approve_amt
 
-    # transferFrom signer1 to receiver via signer2 with 2ibc_erc20
-    await ERC20.fns.transferFrom(signer1, receiver, ibc_erc20_approve_amt).transact(
+    # transferFrom signer1 to receiver via signer2 with 2tf_erc20
+    await ERC20.fns.transferFrom(signer1, receiver, approve_amt).transact(
         w3, signer2, to=tf_erc20_addr, gasPrice=(await w3.eth.gas_price)
     )
-    signer1_balance_eth = await ERC20.fns.balanceOf(signer1).call(w3, to=tf_erc20_addr)
-    assert signer1_balance_eth == signer1_balance_eth_bf - ibc_erc20_approve_amt
-    signer1_balance_eth_bf = signer1_balance_eth
+    signer1_balance = await ERC20.fns.balanceOf(signer1).call(w3, to=tf_erc20_addr)
+    assert signer1_balance == signer1_balance_bf - approve_amt
+    signer1_balance_bf = signer1_balance
 
-    signer2_balance_eth = await ERC20.fns.balanceOf(signer2).call(w3, to=tf_erc20_addr)
-    assert signer2_balance_eth == signer2_balance_eth_bf
-    receiver_balance_eth = await ERC20.fns.balanceOf(receiver).call(
-        w3, to=tf_erc20_addr
-    )
-    assert receiver_balance_eth == receiver_balance_eth_bf + ibc_erc20_approve_amt
-    receiver_balance_eth_bf = receiver_balance_eth
+    signer2_balance = await ERC20.fns.balanceOf(signer2).call(w3, to=tf_erc20_addr)
+    assert signer2_balance == signer2_balance_bf
+    receiver_balance = await ERC20.fns.balanceOf(receiver).call(w3, to=tf_erc20_addr)
+    assert receiver_balance == receiver_balance_bf + approve_amt
+    receiver_balance_bf = receiver_balance
