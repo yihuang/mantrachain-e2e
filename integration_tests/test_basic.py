@@ -523,11 +523,11 @@ def test_textual(mantra):
     assert rsp["code"] == 0, rsp["raw_log"]
 
 
-@pytest.mark.skip(reason="skipping opBlockhash test")
 def test_op_blk_hash(mantra):
     w3 = mantra.w3
     contract = deploy_contract(w3, CONTRACTS["TestBlockTxProperties"])
     height = w3.eth.get_block_number()
+    print("height", height)
     w3_wait_for_new_blocks(w3, 1)
     res = contract.caller.getBlockHash(height).hex()
     blk = w3.eth.get_block(height)
