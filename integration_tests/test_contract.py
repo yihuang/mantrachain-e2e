@@ -14,6 +14,14 @@ from eth_contract.deploy_utils import (
     ensure_history_storage_deployed,
     ensure_multicall3_deployed,
 )
+from eth_contract.entrypoint import (
+    ENTRYPOINT07_ADDRESS,
+    ENTRYPOINT07_ARTIFACT,
+    ENTRYPOINT07_SALT,
+    ENTRYPOINT08_ADDRESS,
+    ENTRYPOINT08_ARTIFACT,
+    ENTRYPOINT08_SALT,
+)
 from eth_contract.erc20 import ERC20
 from eth_contract.history_storage import HISTORY_STORAGE_ADDRESS
 from eth_contract.multicall3 import (
@@ -241,8 +249,13 @@ async def test_flow(mantra, connect_mantra):
     assert await balance_of(w3, ZERO_ADDRESS, users[0].address) == before
 
 
-async def test_7702(mantra):
-    w3: AsyncWeb3 = mantra.async_w3
+@pytest.mark.connect
+async def test_connect_7702(connect_mantra):
+    await test_7702(None, connect_mantra)
+
+
+async def test_7702(mantra, connect_mantra):
+    w3: AsyncWeb3 = connect_mantra.async_w3
     await assert_contract_deployed(w3)
 
     acct = ACCOUNTS["validator"]
@@ -291,6 +304,23 @@ async def test_7702(mantra):
     )
     receipts = await w3.eth.get_block_receipts(receipt["blockNumber"])
     assert receipts[0] == receipt
+
+
+@pytest.mark.connect
+async def test_connect_4437(connect_mantra):
+    await test_4337(None, connect_mantra)
+
+
+async def test_4337(mantra, connect_mantra):
+    w3: AsyncWeb3 = connect_mantra.async_w3
+    await assert_contract_deployed(w3)
+    account = Account.from_key(KEYS["community"])
+    assert ENTRYPOINT08_ADDRESS == await ensure_deployed_by_create2(
+        w3, account, get_initcode(ENTRYPOINT08_ARTIFACT), ENTRYPOINT08_SALT
+    )
+    assert ENTRYPOINT07_ADDRESS == await ensure_deployed_by_create2(
+        w3, account, get_initcode(ENTRYPOINT07_ARTIFACT), ENTRYPOINT07_SALT
+    )
 
 
 # TODO: rm flaky and enlarge num after evm mempool is ready
