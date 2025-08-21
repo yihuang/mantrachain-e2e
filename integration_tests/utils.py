@@ -358,10 +358,12 @@ def send_raw_transactions(w3, raw_transactions):
     return sended_hash_set
 
 
-def send_transaction(w3, tx, key=KEYS["validator"]):
+def send_transaction(w3, tx, key=KEYS["validator"], check=True):
     signed = sign_transaction(w3, tx, key)
     txhash = w3.eth.send_raw_transaction(signed.raw_transaction)
-    return w3.eth.wait_for_transaction_receipt(txhash)
+    if check:
+        return w3.eth.wait_for_transaction_receipt(txhash)
+    return txhash
 
 
 def send_txs(w3, cli, to, keys, params):
