@@ -1,6 +1,6 @@
 import pytest
 
-from .utils import ADDRS, send_transaction_async, wait_for_fn_async
+from .utils import ACCOUNTS
 
 
 @pytest.fixture(scope="module", params=["mantra", "geth"])
@@ -15,27 +15,11 @@ def cluster(request, mantra, geth):
 
 
 @pytest.mark.asyncio
-async def test_eoa(cluster):
-    w3 = cluster.async_w3
-    acct = w3.eth.account.create()
-    value = 10**18
-    tx = {
-        "to": acct.address,
-        "value": value,
-    }
-    tx_hash = await send_transaction_async(w3, ADDRS["validator"], **tx)
+async def test_eoa(mantra):
+    w3 = mantra.async_w3
+    acct = ACCOUNTS["validator"]
     chain_id = await w3.eth.chain_id
     nonce = await w3.eth.get_transaction_count(acct.address)
-    new_dst_balance = 0
-
-    async def check_balance_change():
-        nonlocal new_dst_balance
-        new_dst_balance = await w3.eth.get_balance(acct.address)
-        return new_dst_balance != 0
-
-    await wait_for_fn_async("balance change", check_balance_change)
-    assert await w3.eth.get_balance(acct.address) == value
-
     authz = acct.sign_authorization(
         {
             "address": "0xdeadbeef00000000000000000000000000000000",

@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytest
 import web3
 from eth_bloom import BloomFilter
+from eth_contract.utils import send_transaction as send_transaction_async
 from eth_utils import abi, big_endian_to_int
 from hexbytes import HexBytes
 
@@ -112,24 +113,23 @@ def test_events(mantra, connect_mantra, exp_gas_used=914023):
         assert topic in bloom
 
 
-def test_minimal_gas_price(mantra):
-    w3 = mantra.w3
-    gas_price = w3.eth.gas_price
+@pytest.mark.connect
+async def test_connect_minimal_gas_price(connect_mantra):
+    await test_minimal_gas_price(None, connect_mantra)
+
+
+@pytest.mark.asyncio
+async def test_minimal_gas_price(mantra, connect_mantra):
+    w3 = connect_mantra.async_w3
     tx = {
         "to": "0x0000000000000000000000000000000000000000",
         "value": 10000,
+        "gasPrice": 1,
     }
-    with pytest.raises(web3.exceptions.Web3RPCError):
-        send_transaction(
-            w3,
-            {**tx, "gasPrice": 1},
-            KEYS["community"],
-        )
-    receipt = send_transaction(
-        w3,
-        {**tx, "gasPrice": gas_price},
-        KEYS["validator"],
-    )
+    with pytest.raises(web3.exceptions.Web3RPCError, match="insufficient fee"):
+        await send_transaction_async(w3, ADDRS["community"], **tx)
+    tx["gasPrice"] = await w3.eth.gas_price
+    receipt = await send_transaction_async(w3, ADDRS["validator"], **tx)
     assert receipt.status == 1
 
 

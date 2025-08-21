@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 
 import pytest
-from eth_account import Account
 from eth_contract.contract import Contract, ContractFunction
 from eth_contract.create2 import create2_address
 from eth_contract.deploy_utils import (
@@ -66,7 +65,7 @@ MULTICALL3ROUTER = create2_address(
 
 
 async def assert_contract_deployed(w3):
-    account = Account.from_key(KEYS["community"])
+    account = ACCOUNTS["community"]
     await ensure_create2_deployed(w3, account)
     await ensure_multicall3_deployed(w3, account)
     await ensure_deployed_by_create2(
@@ -93,7 +92,7 @@ async def test_connect_flow(connect_mantra):
 async def test_flow(mantra, connect_mantra):
     w3 = connect_mantra.async_w3
     await assert_contract_deployed(w3)
-    account = Account.from_key(KEYS["community"])
+    account = ACCOUNTS["community"]
     await ensure_createx_deployed(w3, account)
     await ensure_history_storage_deployed(w3, account)
     assert await w3.eth.get_code(HISTORY_STORAGE_ADDRESS)
@@ -139,7 +138,7 @@ async def test_flow(mantra, connect_mantra):
     assert await balance_of(w3, ZERO_ADDRESS, owner) == before - fee
 
     # test_batch_call
-    users = [Account.from_key(KEYS[key]) for key in ["community", "signer1", "signer2"]]
+    users = [ACCOUNTS[key] for key in ["community", "signer1", "signer2"]]
     amount = 1000
     amount_all = amount * len(users)
 
@@ -314,7 +313,7 @@ async def test_connect_4437(connect_mantra):
 async def test_4337(mantra, connect_mantra):
     w3: AsyncWeb3 = connect_mantra.async_w3
     await assert_contract_deployed(w3)
-    account = Account.from_key(KEYS["community"])
+    account = ACCOUNTS["community"]
     assert ENTRYPOINT08_ADDRESS == await ensure_deployed_by_create2(
         w3, account, get_initcode(ENTRYPOINT08_ARTIFACT), ENTRYPOINT08_SALT
     )
