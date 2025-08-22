@@ -111,7 +111,7 @@
           ],
           token_pairs: [{
             erc20_address: '0x4200000000000000000000000000000000000006',
-            denom: 'aom',
+            denom: 'uom',
             enabled: true,
             contract_owner: 1,
           }],
