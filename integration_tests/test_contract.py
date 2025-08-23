@@ -131,10 +131,10 @@ async def test_flow(mantra, connect_mantra):
     before = await balance_of(w3, ZERO_ADDRESS, owner)
     receipt = await weth.fns.deposit().transact(w3, account, value=1000)
     fee = receipt["effectiveGasPrice"] * receipt["gasUsed"]
-    await balance_of(w3, WETH_ADDRESS, owner) == 1000
+    assert await balance_of(w3, WETH_ADDRESS, owner) == 1000
     receipt = await weth.fns.withdraw(1000).transact(w3, account)
     fee += receipt["effectiveGasPrice"] * receipt["gasUsed"]
-    await balance_of(w3, WETH_ADDRESS, owner) == 0
+    assert await balance_of(w3, WETH_ADDRESS, owner) == 0
     assert await balance_of(w3, ZERO_ADDRESS, owner) == before - fee
 
     # test_batch_call

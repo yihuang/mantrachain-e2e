@@ -951,6 +951,24 @@ async def assert_create_erc20_denom(w3, signer):
     return erc20_denom, total
 
 
+def assert_register_erc20_denom(c, weth_addr, tmp_path):
+    submit_gov_proposal(
+        c,
+        tmp_path,
+        messages=[
+            {
+                "@type": "/cosmos.evm.erc20.v1.MsgRegisterERC20",
+                "signer": module_address("gov"),
+                "erc20addresses": [weth_addr],
+            },
+        ],
+        gas=300000,
+    )
+    erc20_denom = f"erc20:{weth_addr}"
+    res = c.cosmos_cli().query_erc20_token_pair(erc20_denom)
+    assert res["erc20_address"] == weth_addr, res
+
+
 def address_to_bytes32(addr) -> HexBytes:
     return HexBytes(addr).rjust(32, b"\x00")
 

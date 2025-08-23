@@ -12,8 +12,7 @@ from .utils import (
     WETH9_ARTIFACT,
     WETH_ADDRESS,
     WETH_SALT,
-    module_address,
-    submit_gov_proposal,
+    assert_register_erc20_denom,
 )
 
 
@@ -29,23 +28,9 @@ async def test_static_erc20(mantra, tmp_path):
         salt=WETH_SALT - 100,
     )
     assert weth_addr != WETH_ADDRESS, "should be different weth address"
+    assert_register_erc20_denom(mantra, weth_addr, tmp_path)
     owner = account.address
-    submit_gov_proposal(
-        mantra,
-        tmp_path,
-        messages=[
-            {
-                "@type": "/cosmos.evm.erc20.v1.MsgRegisterERC20",
-                "signer": module_address("gov"),
-                "erc20addresses": [weth_addr],
-            },
-        ],
-        gas=300000,
-    )
-    cli = mantra.cosmos_cli()
-    erc20_denom = f"erc20:{weth_addr}"
-    res = cli.query_erc20_token_pair(erc20_denom)
-    assert res["erc20_address"] == weth_addr, res
+
     # deposit should be nop
     before = await w3.eth.get_balance(owner)
     weth = WETH(to=weth_addr)
