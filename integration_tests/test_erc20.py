@@ -3,9 +3,7 @@ from eth_contract.deploy_utils import (
     ensure_create2_deployed,
     ensure_deployed_by_create2,
 )
-from eth_contract.erc20 import ERC20
-from eth_contract.utils import ZERO_ADDRESS, balance_of, get_initcode
-from eth_contract.weth import WETH
+from eth_contract.utils import get_initcode
 
 from .utils import (
     ACCOUNTS,
@@ -13,6 +11,7 @@ from .utils import (
     WETH_ADDRESS,
     WETH_SALT,
     assert_register_erc20_denom,
+    assert_weth_flow,
 )
 
 
@@ -29,31 +28,4 @@ async def test_static_erc20(mantra, tmp_path):
     )
     assert weth_addr != WETH_ADDRESS, "should be different weth address"
     assert_register_erc20_denom(mantra, weth_addr, tmp_path)
-    owner = account.address
-
-    # deposit should be nop
-    before = await w3.eth.get_balance(owner)
-    weth = WETH(to=weth_addr)
-    before = await balance_of(w3, ZERO_ADDRESS, owner)
-    receipt = await weth.fns.deposit().transact(w3, account, value=1000)
-    fee = receipt["effectiveGasPrice"] * receipt["gasUsed"]
-    await balance_of(w3, weth_addr, owner) == 1000
-    receipt = await weth.fns.withdraw(1000).transact(w3, account)
-    fee += receipt["effectiveGasPrice"] * receipt["gasUsed"]
-    await balance_of(w3, weth_addr, owner) == 0
-
-    # withdraw should be nop
-    weth = WETH(to=weth_addr)
-    before = await balance_of(w3, ZERO_ADDRESS, owner)
-    receipt = await weth.fns.deposit().transact(w3, account, value=1000)
-    fee = receipt["effectiveGasPrice"] * receipt["gasUsed"]
-    await balance_of(w3, weth_addr, owner) == 1000
-    receipt = await weth.fns.withdraw(1000).transact(w3, account)
-    fee += receipt["effectiveGasPrice"] * receipt["gasUsed"]
-    await balance_of(w3, weth_addr, owner) == 0
-    assert await balance_of(w3, ZERO_ADDRESS, owner) == before - fee
-
-    # fail
-    assert await ERC20.fns.decimals().call(w3, to=weth_addr) == 18
-    assert await ERC20.fns.symbol().call(w3, to=weth_addr) == "WETH"
-    assert await ERC20.fns.name().call(w3, to=weth_addr) == "Wrapped Ether"
+    await assert_weth_flow(w3, weth_addr, account.address, account)
