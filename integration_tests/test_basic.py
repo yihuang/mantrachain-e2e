@@ -10,6 +10,7 @@ from eth_utils import abi, big_endian_to_int
 from hexbytes import HexBytes
 
 from .utils import (
+    ACCOUNTS,
     ADDRS,
     CONTRACTS,
     DEFAULT_DENOM,
@@ -127,9 +128,9 @@ async def test_minimal_gas_price(mantra, connect_mantra):
         "gasPrice": 1,
     }
     with pytest.raises(web3.exceptions.Web3RPCError, match="insufficient fee"):
-        await send_transaction_async(w3, ADDRS["community"], **tx)
+        await send_transaction_async(w3, ACCOUNTS["community"], **tx)
     tx["gasPrice"] = await w3.eth.gas_price
-    receipt = await send_transaction_async(w3, ADDRS["validator"], **tx)
+    receipt = await send_transaction_async(w3, ACCOUNTS["signer1"], **tx)
     assert receipt.status == 1
 
 
