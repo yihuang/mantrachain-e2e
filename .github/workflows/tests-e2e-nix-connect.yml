@@ -51,7 +51,12 @@ jobs:
           auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
       - name: Restore network.env
         run: |
-          echo "${{ secrets.NETWORK_ENV }}" > ./scripts/network.env
+          IFS=',' read -ra ADDR <<< "${{ secrets.NETWORK_ENVS }}"
+          for kv in "${ADDR[@]}"; do
+            key="${kv%%=*}"
+            val="${kv#*=}"
+            echo "export $key=\"$val\""
+          done > ./scripts/network.env
       - name: Run integration tests
         run: |
           make test-connect-e2e-nix
