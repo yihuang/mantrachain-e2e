@@ -31,7 +31,8 @@ jobs:
         run: sudo rm -rf /usr/share/dotnet && sudo rm -rf /opt/ghc && sudo rm -rf "/usr/local/share/boost" && sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          submodules: recursive
+          fetch-depth: 1
       - uses: cachix/install-nix-action@6a9a9e84a173d90b3ffb42c5ddaf9ea033fad011 # v23
         with:
           nix_path: nixpkgs=channel:nixos-25.05
