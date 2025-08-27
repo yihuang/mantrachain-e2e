@@ -68,8 +68,8 @@ def test_send_transaction(mantra):
 
 
 @pytest.mark.connect
-async def test_connect_events(connect_mantra):
-    await test_events(None, connect_mantra, exp_gas_used=None)
+def test_connect_events(connect_mantra):
+    test_events(None, connect_mantra, exp_gas_used=None)
 
 
 def test_events(mantra, connect_mantra, exp_gas_used=919699):
@@ -357,7 +357,7 @@ def test_contract(mantra, connect_mantra, tmp_path):
     w3 = connect_mantra.w3
     name = "community"
     key = KEYS[name]
-    greeter = Greeter("Greeter")
+    greeter = Greeter("Greeter", private_key=key)
     greeter.deploy(w3)
     contract = greeter.contract
     assert "Hello" == contract.caller.greet()
