@@ -18,6 +18,7 @@ from web3.providers.rpc.utils import ExceptionRetryConfiguration
 
 from .cosmoscli import CosmosCLI
 from .utils import (
+    CHAIN_ID,
     supervisorctl,
     wait_for_block,
     wait_for_port,
@@ -205,9 +206,7 @@ def setup_custom_mantra(
     try:
         if wait_port:
             wait_for_port(ports.rpc_port(base_port))
-        c = Mantra(
-            path / "mantra-canary-net-1", chain_binary=chain_binary or "mantrachaind"
-        )
+        c = Mantra(path / CHAIN_ID, chain_binary=chain_binary or "mantrachaind")
         wait_for_block(c.cosmos_cli(), 1)
         yield c
     finally:
@@ -220,7 +219,7 @@ def connect_custom_mantra():
     rpc = os.getenv("RPC", "http://127.0.0.1:26657")
     evm_rpc = os.getenv("EVM_RPC", "http://127.0.0.1:26651")
     evm_rpc_ws = os.getenv("EVM_RPC_WS", "ws://127.0.0.1:26652")
-    chain_id = os.getenv("CHAIN_ID", "mantra-canary-net-1")
+    chain_id = os.getenv("CHAIN_ID", CHAIN_ID)
     wait_for_url(rpc)
     wait_for_url(evm_rpc)
     yield ConnectMantra(rpc, evm_rpc, evm_rpc_ws, chain_id)
