@@ -17,7 +17,7 @@ from eth_utils import to_bytes, to_checksum_address
 
 from .utils import ACCOUNTS, ADDRS
 
-GAS_PRICE = 100000000
+GAS_PRICE = 1000000000000
 WOM = to_checksum_address("0x4200000000000000000000000000000000000006")
 ERC20Bin = bytes.fromhex(
     Path(__file__).parent.joinpath("configs/ERC20.bin").read_text()
@@ -101,13 +101,18 @@ async def test_bank_erc20(mantra):
         w3, ACCOUNTS["validator"], initcode, ERC20Salt, gasPrice=GAS_PRICE
     )
 
-    expected = ["Test Coin", "ATOKEN", 18, 1000000000000, 1000000000000]
+    test_user = to_checksum_address((1).to_bytes(20, "big"))
+    await ERC20.fns.transfer(test_user, 1).transact(
+        w3, ACCOUNTS["community"], to=token, gasPrice=GAS_PRICE
+    )
+
+    expected = ["Test Coin", "ATOKEN", 18, 1000000000000, 1]
     calls = [
         (token, ERC20.fns.name()),
         (token, ERC20.fns.symbol()),
         (token, ERC20.fns.decimals()),
         (token, ERC20.fns.totalSupply()),
-        (token, ERC20.fns.balanceOf(user)),
+        (token, ERC20.fns.balanceOf(test_user)),
     ]
     result = await multicall(w3, calls)
     assert expected == result
