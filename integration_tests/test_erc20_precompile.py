@@ -101,7 +101,7 @@ async def test_bank_erc20(mantra):
         w3, ACCOUNTS["validator"], initcode, ERC20Salt, gasPrice=GAS_PRICE
     )
 
-    test_user = to_checksum_address((1).to_bytes(20, "big"))
+    test_user = to_checksum_address(b"\x01" * 20)
     await ERC20.fns.transfer(test_user, 1).transact(
         w3, ACCOUNTS["community"], to=token, gasPrice=GAS_PRICE
     )
