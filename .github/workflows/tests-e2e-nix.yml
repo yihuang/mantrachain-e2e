@@ -84,13 +84,6 @@ jobs:
         os: [macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Remove existing Nix build users (macOS fix)
-        run: |
-          for i in $(seq 1 32); do
-            if dscl . -read /Users/_nixbld$i &>/dev/null; then
-              sudo dscl . -delete /Users/_nixbld$i
-            fi
-          done
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -101,7 +94,7 @@ jobs:
             docs
             *.md
             **/*.md
-      - uses: cachix/install-nix-action@6a9a9e84a173d90b3ffb42c5ddaf9ea033fad011 # v23
+      - uses: cachix/install-nix-action@56a7bb7b56d9a92d4fd1bc05758de7eea4a370a8 # v31.6.0
         with:
           nix_path: nixpkgs=channel:nixos-22.11
           extra_nix_config: |
