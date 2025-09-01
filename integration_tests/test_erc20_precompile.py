@@ -117,7 +117,6 @@ async def test_bank_erc20(mantra):
     result = await multicall(w3, calls)
     assert expected == result
 
-    # owner can transfer funds on bank precompile directly
     recipient = ADDRS["validator"]
     amount = 1000
     before = (
