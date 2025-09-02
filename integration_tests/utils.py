@@ -362,7 +362,13 @@ def send_txs(w3, cli, to, keys, params):
     return block_num_0, sended_hash_set
 
 
+# Global cache for built contracts
+CONTRACTS = {}
+
+
 def build_contract(name) -> dict:
+    if name in CONTRACTS:
+        return CONTRACTS[name]
     cmd = [
         "solc",
         "--abi",
@@ -388,11 +394,13 @@ def build_contract(name) -> dict:
     subprocess.run(cmd, check=True)
     bytecode = Path(f"build/{name}.bin").read_text().strip()
     code = Path(f"build/{name}.bin-runtime").read_text().strip()
-    return {
+    result = {
         "abi": json.loads(Path(f"build/{name}.abi").read_text()),
         "bytecode": f"0x{bytecode}",
         "code": f"0x{code}",
     }
+    CONTRACTS[name] = result
+    return result
 
 
 async def build_and_deploy_contract_async(
