@@ -78,7 +78,7 @@ MockERC20_ARTIFACT = json.loads(
 
 
 class Contract:
-    def __init__(self, name, private_key=KEYS["validator"], chain_id=EVM_CHAIN_ID):
+    def __init__(self, name, private_key=KEYS["community"], chain_id=EVM_CHAIN_ID):
         self.chain_id = chain_id
         self.account = Account.from_key(private_key)
         self.owner = self.account.address
@@ -319,7 +319,7 @@ def find_duplicate(attributes):
     return None
 
 
-def sign_transaction(w3, tx, key=KEYS["validator"]):
+def sign_transaction(w3, tx, key=KEYS["community"]):
     "fill default fields and sign"
     acct = Account.from_key(key)
     tx["from"] = acct.address
@@ -337,7 +337,7 @@ def send_raw_transactions(w3, raw_transactions):
     return sended_hash_set
 
 
-def send_transaction(w3, tx, key=KEYS["validator"], check=True):
+def send_transaction(w3, tx, key=KEYS["community"], check=True):
     signed = sign_transaction(w3, tx, key)
     txhash = w3.eth.send_raw_transaction(signed.raw_transaction)
     if check:
@@ -396,7 +396,7 @@ def build_contract(name) -> dict:
 
 
 async def build_and_deploy_contract_async(
-    w3: AsyncWeb3, name, args=(), key=KEYS["validator"], exp_gas_used=None
+    w3: AsyncWeb3, name, args=(), key=KEYS["community"], exp_gas_used=None
 ):
     res = build_contract(name)
     contract = w3.eth.contract(abi=res["abi"], bytecode=res["bytecode"])
@@ -411,7 +411,7 @@ async def build_and_deploy_contract_async(
     return w3.eth.contract(address=address, abi=res["abi"])
 
 
-def create_contract_transaction(w3, name, args=(), key=KEYS["validator"]):
+def create_contract_transaction(w3, name, args=(), key=KEYS["community"]):
     """
     create contract transaction
     """
@@ -423,7 +423,7 @@ def create_contract_transaction(w3, name, args=(), key=KEYS["validator"]):
 
 
 async def build_deploy_contract_async(
-    w3: AsyncWeb3, res, args=(), key=KEYS["validator"]
+    w3: AsyncWeb3, res, args=(), key=KEYS["community"]
 ):
     acct = Account.from_key(key)
     contract = w3.eth.contract(abi=res["abi"], bytecode=res["bytecode"])
@@ -694,7 +694,7 @@ def contract_address(addr, nonce):
     )
 
 
-def build_batch_tx(w3, cli, txs, key=KEYS["validator"]):
+def build_batch_tx(w3, cli, txs, key=KEYS["community"]):
     "return cosmos batch tx and eth tx hashes"
     signed_txs = [sign_transaction(w3, tx, key) for tx in txs]
     tmp_txs = [
