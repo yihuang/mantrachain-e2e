@@ -102,10 +102,9 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
         },
       },
       app_state: {
-        evm: {
-          params: {
+        evm: chain.evm {
+          params+: {
             evm_denom: chain.evm_denom,
-            allow_unprotected_txs: true,
             active_static_precompiles: [
               '0x0000000000000000000000000000000000000807',
             ],
@@ -122,10 +121,8 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
             contract_owner: 1,
           }],
         },
-        feemarket: {
-          params: {
-            base_fee: '0.010000000000000000',
-            min_gas_price: '0.010000000000000000',
+        feemarket: chain.feemarket {
+          params+: {
             min_gas_multiplier: '0',
           },
         },
