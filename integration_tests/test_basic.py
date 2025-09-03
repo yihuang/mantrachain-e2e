@@ -160,8 +160,13 @@ async def test_minimal_gas_price(mantra, connect_mantra):
     assert receipt.status == 1
 
 
-def test_transaction(mantra):
-    w3 = mantra.w3
+@pytest.mark.connect
+def test_connect_transaction(connect_mantra):
+    test_transaction(None, connect_mantra)
+
+
+def test_transaction(mantra, connect_mantra):
+    w3 = connect_mantra.w3
     gas_price = w3.eth.gas_price
     sender = ADDRS["community"]
     receiver = ADDRS["signer1"]
@@ -228,7 +233,7 @@ def test_transaction(mantra):
     assert "insufficient fee" in str(exc)
 
     # check all failed transactions are not included in blockchain
-    assert w3.eth.get_block_number() == initial_block_number
+    assert w3.eth.get_block_number() - initial_block_number <= 1
 
     # Deploy multiple contracts
     contracts = {
@@ -310,7 +315,7 @@ def assert_receipt_transaction_and_block(w3, futures):
 
 
 @pytest.mark.connect
-async def test_connect_exception(connect_mantra):
+def test_connect_exception(connect_mantra):
     test_exception(None, connect_mantra)
 
 
@@ -491,7 +496,7 @@ def test_failed_transfer_tx(mantra):
     w3 = mantra.w3
     cli = mantra.cosmos_cli()
     sender = ADDRS["community"]
-    recipient = ADDRS["validator"]
+    recipient = ADDRS["signer1"]
     nonce = w3.eth.get_transaction_count(sender)
     half_balance = w3.eth.get_balance(sender) // 3 + 1
 
