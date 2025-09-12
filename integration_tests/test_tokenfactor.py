@@ -87,13 +87,11 @@ def test_setup_hooks_denom(mantra):
             res["events"], "instantiate", lambda attrs: attr in attrs
         ).get(attr)
 
-        denom = f"factory/{addr_a}/{subdenom}"
-        res = cli.set_tokenfactory_before_send_hook(
-            denom, contract_address, _from=addr_a
-        )
-        assert res["code"] == 0
-
         if name == "transfer_cap":
+            res = cli.set_tokenfactory_before_send_hook(
+                denom, contract_address, _from=addr_a
+            )
+            assert res["code"] == 0
             before = (
                 cli.balance(addr_a, denom),
                 cli.balance(addr_b, denom),
@@ -109,7 +107,25 @@ def test_setup_hooks_denom(mantra):
             )
             assert after == (before[0] - TRANSFER_CAP, before[1] + TRANSFER_CAP)
         else:
+            before = (
+                cli.balance(addr_a, denom),
+                cli.balance(contract_address, denom),
+            )
             amt = 10
             res = cli.transfer(addr_a, contract_address, f"{amt}{denom}", gas=gas)
-            assert res["code"] != 0
-            assert "gas meter hit maximum limit" in res["raw_log"]
+            res = cli.set_tokenfactory_before_send_hook(
+                denom, contract_address, _from=addr_a
+            )
+            assert res["code"] == 0
+            before = (
+                cli.balance(addr_a, denom),
+                cli.balance(contract_address, denom),
+            )
+            res = cli.transfer(addr_a, contract_address, f"{amt}{denom}", gas=gas)
+            assert res["code"] == 0
+            assert int(res["gas_used"]) > 700000
+            after = (
+                cli.balance(addr_a, denom),
+                cli.balance(contract_address, denom),
+            )
+            assert after == (before[0] - amt, before[1] + amt)
