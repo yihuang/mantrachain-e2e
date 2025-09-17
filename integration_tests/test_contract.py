@@ -96,8 +96,25 @@ async def test_flow(mantra, connect_mantra):
     assert await w3.eth.get_code(HISTORY_STORAGE_ADDRESS)
     salt = 100
     initcode = to_bytes(hexstr=build_contract("TestBlockTxProperties")["bytecode"][2:])
+    height = await w3.eth.block_number
     contract = await ensure_deployed_by_create2(w3, account, initcode, salt=salt)
     assert contract == "0xe1B18c74a33b1E67B5f505C931Ac264668EA94F5"
+
+    # get contract address from input
+    calldata = None
+    for h in (height, height + 1):
+        res = await w3.eth.get_block(h, True)
+        for tx in res["transactions"]:
+            if tx["from"] == account.address:
+                calldata = tx["input"].hex()
+                break
+        if calldata:
+            break
+
+    salt = bytes.fromhex(calldata[0:64])
+    initcode = to_bytes(hexstr=calldata[64:])
+    create2_address(initcode, salt) == contract
+
     height = await w3.eth.block_number
     await w3_wait_for_new_blocks_async(w3, 1)
 
