@@ -1,16 +1,24 @@
+import json
+import re
+import subprocess
 import time
+from pathlib import Path
 
 import pytest
+import tomlkit
 from eth_contract.erc20 import ERC20
+from pystarport import cluster, ports
 
 from .network import Mantra
 from .upgrade_utils import (
     cleanup_upgrades_folder,
     do_upgrade,
+    patch_app_evm_chain_ids,
     setup_mantra_upgrade,
 )
 from .utils import (
     DEFAULT_DENOM,
+    Greeter,
     assert_create_tokenfactory_denom,
     assert_mint_tokenfactory_denom,
     assert_set_tokenfactory_denom,
@@ -20,7 +28,10 @@ from .utils import (
     denom_to_erc20_address,
     derive_new_account,
     eth_to_bech32,
+    get_sync_info,
+    wait_for_block,
     wait_for_new_blocks,
+    wait_for_port,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -41,13 +52,8 @@ def custom_mantra(request, tmp_path_factory):
 async def exec(c, tmp_path):
     cli = c.cosmos_cli()
     community = "community"
-
-    c.supervisorctl(
-        "start",
-        "mantra-canary-net-1-node0",
-        "mantra-canary-net-1-node1",
-        "mantra-canary-net-1-node2",
-    )
+    nodes = [f"mantra-canary-net-1-node{i}" for i in range(3)]
+    c.supervisorctl("start", *nodes)
     wait_for_new_blocks(cli, 1)
 
     addr_a = cli.address(community)
@@ -64,6 +70,68 @@ async def exec(c, tmp_path):
     )
 
     cli = do_upgrade(c, "v5.0", target_height)
+
+    data = Path(c.base_dir).parent
+    chain_id = c.config["chain_id"]
+    clustercli = cluster.ClusterCLI(data, cmd="mantrachaind", chain_id=chain_id)
+    i = clustercli.create_node(moniker="statesync", statesync=True)
+    # Modify the json-rpc addresses to avoid conflict
+    cluster.edit_app_cfg(
+        clustercli.home(i) / "config/app.toml",
+        clustercli.base_port(i),
+        {
+            "json-rpc": {
+                "enable": True,
+                "address": "127.0.0.1:{EVMRPC_PORT}",
+                "ws-address": "127.0.0.1:{EVMRPC_PORT_WS}",
+            },
+        },
+    )
+    clustercli.supervisor.startProcess(f"{clustercli.chain_id}-node{i}")
+    # Wait 1 more block
+    wait_for_block(clustercli.cosmos_cli(i), cli.block_height() + 1)
+    time.sleep(1)
+
+    # check query chain state works
+    assert not get_sync_info(clustercli.status(i))["catching_up"]
+    wait_for_port(ports.evmrpc_port(clustercli.base_port(i)))
+
+    print(c.supervisorctl("stop", "all"))
+    time.sleep(5)
+    patch_app_evm_chain_ids(c)
+
+    config_dir = clustercli.cosmos_cli(i).data_dir / "config"
+    patch_chain_id(config_dir)
+    patch_genesis(config_dir, "mantra-test-1")
+
+    ini = c.base_dir / "tasks.ini"
+    cmd = "command = mantrachaind start --home . --trace --chain-id mantra-canary-net-1"
+    ini.write_text(
+        re.sub(
+            r"^command = mantrachaind start --home .$",
+            cmd,
+            ini.read_text(),
+            flags=re.M,
+        )
+    )
+    c.supervisorctl("update")
+    nodes = [f"mantra-canary-net-1-node{i}" for i in range(4)]
+    with pytest.raises(subprocess.CalledProcessError):
+        c.supervisorctl("start", *nodes)
+
+    patch_genesis(config_dir, "mantra-canary-net-1")
+    c.supervisorctl("start", *nodes)
+    wait_for_new_blocks(cli, 1)
+
+    # check set contract tx works
+    acc_c = derive_new_account(101)
+    addr_c = eth_to_bech32(acc_c.address)
+    assert_transfer(cli, addr_a, addr_c, amt=10**6)
+    greeter = Greeter("Greeter", acc_c.key)
+    w3 = c.w3
+    greeter.deploy(w3)
+    contract = greeter.contract
+    assert "Hello" == contract.caller.greet()
 
     addr_b = cli.create_account("recover")["address"]
     sender = bech32_to_eth(addr_b)
@@ -101,7 +169,24 @@ async def exec(c, tmp_path):
     balance_eth = await ERC20.fns.balanceOf(receiver).call(w3, to=tf_erc20_addr)
     assert balance == balance_eth == transfer_amt2
 
+    # check sync node health
+    assert abs(clustercli.cosmos_cli(i).block_height() - cli.block_height()) <= 1
+
 
 async def test_cosmovisor_upgrade(custom_mantra: Mantra, tmp_path):
     await exec(custom_mantra, tmp_path)
     cleanup_upgrades_folder(custom_mantra.cosmos_cli().data_dir)
+
+
+def patch_chain_id(path):
+    cfg_file = path / "app.toml"
+    cfg = tomlkit.parse(cfg_file.read_text())
+    cfg["evm"] = {}
+    cfg_file.write_text(tomlkit.dumps(cfg))
+
+
+def patch_genesis(path, chain_id):
+    genesis_path = path / "genesis.json"
+    genesis = json.loads(genesis_path.read_text())
+    genesis["chain_id"] = chain_id
+    genesis_path.write_text(json.dumps(genesis, indent=2))
