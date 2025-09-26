@@ -324,7 +324,7 @@ class CosmosCLI:
         res = res.get("pool") or res
         return int(res["bonded_tokens" if bonded else "not_bonded_tokens"])
 
-    def delegate_amount(self, validator_address, amt, **kwargs):
+    def delegate_amount(self, validator_address, amt, generate_only=False, **kwargs):
         default_kwargs = self.get_kwargs()
         rsp = json.loads(
             self.raw(
@@ -333,6 +333,7 @@ class CosmosCLI:
                 "delegate",
                 validator_address,
                 amt,
+                "--generate-only" if generate_only else None,
                 "-y",
                 **(default_kwargs | kwargs),
             )
@@ -340,6 +341,17 @@ class CosmosCLI:
         if rsp.get("code") == 0:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
+
+    def tx_simulate(self, tx, **kwargs):
+        default_kwargs = self.get_kwargs()
+        return json.loads(
+            self.raw(
+                "tx",
+                "simulate",
+                tx,
+                **(default_kwargs | kwargs),
+            )
+        )
 
     def query_tally(self, proposal_id, **kwargs):
         res = json.loads(

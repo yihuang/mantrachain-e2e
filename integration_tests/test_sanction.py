@@ -1,10 +1,12 @@
 import json
+import math
 
 import pytest
 import web3
 
 from .utils import (
     DEFAULT_DENOM,
+    DEFAULT_GAS_AMT,
     DEFAULT_GAS_PRICE,
     approve_proposal,
     assert_transfer,
@@ -59,12 +61,29 @@ def test_blacklist(mantra, tmp_path):
     validator_address = cli.address("validator", "val")
     assert cli.distribution_reward(granter) == 0
     gas_prices = DEFAULT_GAS_PRICE
-    rsp = cli.delegate_amount(
+    generated_tx_txt = tmp_path / "generated_tx.txt"
+    tx = cli.delegate_amount(
         validator_address,
         "%s%s" % (delegate_coins, DEFAULT_DENOM),
+        generate_only=True,
         from_=granter,
         gas_prices=gas_prices,
     )
+    with open(generated_tx_txt, "w") as f:
+        json.dump(tx, f)
+    # test simulate gas
+    res = cli.tx_simulate(generated_tx_txt, from_=granter)
+    gas_multiplier = 1.2
+    gas = float(res.get("gas_info", {}).get("gas_used", 0)) * gas_multiplier
+    tx["auth_info"]["fee"] = {
+        "amount": [{"denom": "uom", "amount": f"{math.ceil(DEFAULT_GAS_AMT * gas)}"}],
+        "gas_limit": f"{math.ceil(gas)}",
+    }
+    with open(generated_tx_txt, "w") as opened_file:
+        json.dump(tx, opened_file)
+    tx_json = cli.sign_tx(generated_tx_txt, granter)
+    rsp = cli.broadcast_tx_json(tx_json)
+    assert rsp["code"] == 0, rsp["raw_log"]
     fee = find_fee(rsp)
     assert rsp["code"] == 0
 
@@ -81,7 +100,6 @@ def test_blacklist(mantra, tmp_path):
     fee += find_fee(rsp)
     assert rsp["code"] == 0
 
-    generated_tx_txt = tmp_path / "generated_tx.txt"
     generated_tx_msg = cli.withdraw_all_rewards(
         from_=granter,
         generate_only=True,
@@ -108,7 +126,6 @@ def test_blacklist(mantra, tmp_path):
         assert_transfer(cli, granter, community)
 
     amt = spend_limit // 2
-    generated_tx_txt = tmp_path / "generated_tx.txt"
     with open(generated_tx_txt, "w") as opened_file:
         generated_tx_msg = cli.transfer(
             granter,
