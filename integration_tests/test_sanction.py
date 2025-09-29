@@ -61,7 +61,7 @@ def test_blacklist(mantra, tmp_path):
     validator_address = cli.address("validator", "val")
     assert cli.distribution_reward(granter) == 0
     gas_prices = DEFAULT_GAS_PRICE
-    generated_tx_txt = tmp_path / "generated_tx.txt"
+    generated_tx = tmp_path / "generated_tx.json"
     tx = cli.delegate_amount(
         validator_address,
         "%s%s" % (delegate_coins, DEFAULT_DENOM),
@@ -69,23 +69,24 @@ def test_blacklist(mantra, tmp_path):
         from_=granter,
         gas_prices=gas_prices,
     )
-    with open(generated_tx_txt, "w") as f:
+    with open(generated_tx, "w") as f:
         json.dump(tx, f)
     # test simulate gas
-    res = cli.tx_simulate(generated_tx_txt, from_=granter)
+    res = cli.tx_simulate(generated_tx, from_=granter)
     gas_multiplier = 1.2
     gas = float(res.get("gas_info", {}).get("gas_used", 0)) * gas_multiplier
     tx["auth_info"]["fee"] = {
-        "amount": [{"denom": "uom", "amount": f"{math.ceil(DEFAULT_GAS_AMT * gas)}"}],
+        "amount": [
+            {"denom": DEFAULT_DENOM, "amount": f"{math.ceil(DEFAULT_GAS_AMT * gas)}"}
+        ],
         "gas_limit": f"{math.ceil(gas)}",
     }
-    with open(generated_tx_txt, "w") as opened_file:
-        json.dump(tx, opened_file)
-    tx_json = cli.sign_tx(generated_tx_txt, granter)
+    with open(generated_tx, "w") as f:
+        json.dump(tx, f)
+    tx_json = cli.sign_tx(generated_tx, granter)
     rsp = cli.broadcast_tx_json(tx_json)
     assert rsp["code"] == 0, rsp["raw_log"]
     fee = find_fee(rsp)
-    assert rsp["code"] == 0
 
     # wait for some reward
     wait_for_new_blocks(cli, 2)
@@ -104,8 +105,8 @@ def test_blacklist(mantra, tmp_path):
         from_=granter,
         generate_only=True,
     )
-    with open(generated_tx_txt, "w") as opened_file:
-        json.dump(generated_tx_msg, opened_file)
+    with open(generated_tx, "w") as f:
+        json.dump(generated_tx_msg, f)
 
     approve_proposal(mantra, gov_rsp["events"])
     assert granter in cli.query_blacklist()
@@ -114,7 +115,7 @@ def test_blacklist(mantra, tmp_path):
     rewards1 = cli.distribution_reward(granter)
     balance1 = cli.balance(granter)
     rsp = cli.exec_tx_by_grantee(
-        generated_tx_txt,
+        generated_tx,
         from_=grantee,
     )
     assert rsp["code"] == 0
@@ -126,17 +127,17 @@ def test_blacklist(mantra, tmp_path):
         assert_transfer(cli, granter, community)
 
     amt = spend_limit // 2
-    with open(generated_tx_txt, "w") as opened_file:
+    with open(generated_tx, "w") as f:
         generated_tx_msg = cli.transfer(
             granter,
             receiver,
             "%s%s" % (amt, DEFAULT_DENOM),
             generate_only=True,
         )
-        json.dump(generated_tx_msg, opened_file)
+        json.dump(generated_tx_msg, f)
 
     rsp = cli.exec_tx_by_grantee(
-        generated_tx_txt,
+        generated_tx,
         from_=grantee,
     )
     assert rsp["code"] == 0, rsp["raw_log"]

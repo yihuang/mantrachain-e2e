@@ -124,6 +124,7 @@ async def test_submit_send_enabled(mantra, tmp_path):
         gas=gas,
     )
     assert normalize(cli.query_bank_send()) == normalize(send_enable)
+    # compare balance after convert all erc20
     rsp = cli.convert_erc20(WETH_ADDRESS, total, _from=sender, gas=999999)
     assert rsp["code"] == 0, rsp["raw_log"]
     assert cli.balance(sender, erc20_denom) == total

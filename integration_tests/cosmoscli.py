@@ -614,6 +614,21 @@ class CosmosCLI:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
 
+    def register_erc20(self, contract, **kwargs):
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "erc20",
+                "register-erc20",
+                contract,
+                "-y",
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
     def rollback(self):
         self.raw("rollback", home=self.data_dir)
 
@@ -869,14 +884,14 @@ class CosmosCLI:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
 
-    def wasm_instantiate(self, code_id, wallet, label="test", **kwargs):
+    def wasm_instantiate(self, code_id, wallet, label="test", msg="{}", **kwargs):
         rsp = json.loads(
             self.raw(
                 "tx",
                 "wasm",
                 "instantiate",
                 code_id,
-                "{}",
+                msg,
                 "--admin",
                 wallet,
                 "--label",

@@ -16,7 +16,6 @@ from .utils import (
     assert_create_erc20_denom,
     assert_create_tokenfactory_denom,
     assert_mint_tokenfactory_denom,
-    assert_register_erc20_denom,
     assert_tf_flow,
     assert_transfer_tokenfactory_denom,
     build_and_deploy_contract_async,
@@ -172,18 +171,21 @@ async def prepare_dest_callback(w3, sender, amt):
     return contract.address, json.dumps(dest_cb)
 
 
-async def test_ibc_cb(ibc, tmp_path):
+async def test_ibc_cb(ibc):
     w3 = ibc.ibc1.async_w3
     cli = ibc.ibc1.cosmos_cli()
     cli2 = ibc.ibc2.cosmos_cli()
     signer1 = ADDRS["signer1"]
     signer2 = ADDRS["signer2"]
-    addr_signer1 = eth_to_bech32(signer1)
     addr_signer2 = eth_to_bech32(signer2)
     erc20_denom, total = await assert_create_erc20_denom(w3, signer1)
 
     # check native erc20 transfer
-    assert_register_erc20_denom(ibc.ibc1, WETH_ADDRESS, tmp_path)
+    res = cli.register_erc20(WETH_ADDRESS, _from="community", gas=400_000)
+    assert res["code"] == 0
+    erc20_denom = f"erc20:{WETH_ADDRESS}"
+    res = cli.query_erc20_token_pair(erc20_denom)
+    assert res["erc20_address"] == WETH_ADDRESS, res
 
     # mantra-canary-net-1 signer1 -> mantra-canary-net-2 signer2 50erc20_denom
     transfer_amt = total // 2
@@ -209,19 +211,6 @@ async def test_ibc_cb(ibc, tmp_path):
     assert cli.balance(escrow_addr, erc20_denom) == transfer_amt
     signer1_balance_eth = await ERC20.fns.balanceOf(signer1).call(w3, to=WETH_ADDRESS)
     assert signer1_balance_eth == total - transfer_amt
-
-    # convert all erc20 for signer1
-    signer1_balance_erc20_denom_bf = cli.balance(addr_signer1, erc20_denom)
-    rsp = cli.convert_erc20(
-        WETH_ADDRESS, signer1_balance_eth, _from=addr_signer1, gas=999999
-    )
-    assert rsp["code"] == 0, rsp["raw_log"]
-    assert await ERC20.fns.balanceOf(signer1).call(w3, to=WETH_ADDRESS) == 0
-    assert (
-        cli.balance(addr_signer1, erc20_denom)
-        == signer1_balance_erc20_denom_bf + signer1_balance_eth
-    )
-    assert cli.balance(escrow_addr, erc20_denom) == transfer_amt
 
     # deploy cb contract
     transfer_amt = total // 2
