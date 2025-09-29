@@ -40,12 +40,8 @@ async def exec(c):
     community = "community"
     gas = 300000
 
-    c.supervisorctl(
-        "start",
-        "mantra-canary-net-1-node0",
-        "mantra-canary-net-1-node1",
-        "mantra-canary-net-1-node2",
-    )
+    nodes = [f"mantra-canary-net-1-node{i}" for i in range(3)]
+    c.supervisorctl("start", *nodes)
     wait_for_new_blocks(cli, 1)
 
     height = cli.block_height()
@@ -85,19 +81,13 @@ async def exec(c):
 
     receiver = derive_new_account(5).address
     await assert_tf_flow(w3, receiver, signer1, ADDRS["signer2"], tf_erc20_addr)
-
     c.supervisorctl("stop", "all")
     state = cli.export()["app_state"]
     assert state["erc20"]["native_precompiles"] == [
         "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
     ]
 
-    c.supervisorctl(
-        "start",
-        "mantra-canary-net-1-node0",
-        "mantra-canary-net-1-node1",
-        "mantra-canary-net-1-node2",
-    )
+    c.supervisorctl("start", *nodes)
     wait_for_new_blocks(cli, 1)
 
     height = cli.block_height()

@@ -9,7 +9,7 @@
   pkgsStatic,
 }:
 let
-  version = "v5.0.0-rc4";
+  version = "v5.0";
   pname = "mantrachain";
   wasmvmVersion = "v3.0.0";
 

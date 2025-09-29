@@ -15,30 +15,6 @@ let
         linux-amd64 = "sha256-gExKEcM9CyUimbuBSCz2YL7YuiFyBUmf3hbYJVfB7XQ=";
       };
     };
-    "v5.0.0-rc0" = {
-      filename = "mantrachaind-5.0.0-rc0-${platform}.tar.gz";
-      sha256 = {
-        darwin-amd64 = "sha256-FyUgtoQVwsO2q3/3uZ6D+TeVR3DCmqBEubveXtzLkEo=";
-        linux-arm64 = "sha256-sSXFN2gHWLUb6wn0No9r23ty6bOta2iebrwBnAyGRyM=";
-        linux-amd64 = "sha256-sSXFN2gHWLUb6wn0No9r23ty6bOta2iebrwBnAyGRyM=";
-      };
-    };
-    "v5.0.0-rc1" = {
-      filename = "mantrachaind-5.0.0-rc1-${platform}.tar.gz";
-      sha256 = {
-        darwin-amd64 = "sha256-G4JcV4VbKWleGaVlVKkNalbPF6Uoxkv4nsLlCW8nZkE=";
-        linux-arm64 = "sha256-5m9+fmA+/80SAYwwb9wgB1K5yz3nXcrc2OlYNMmdE/M=";
-        linux-amd64 = "sha256-5m9+fmA+/80SAYwwb9wgB1K5yz3nXcrc2OlYNMmdE/M=";
-      };
-    };
-    "v5.0.0-rc2" = {
-      filename = "mantrachaind-5.0.0-rc2-${platform}.tar.gz";
-      sha256 = {
-        darwin-amd64 = "sha256-wiJscoijqIrWb8AMALzj13YN54y62997fXqU8g3BjX0=";
-        linux-arm64 = "sha256-7FqreDBr85vgjCEr8WyCqOoG0Y9SbrVjVF3LCJuMoxw=";
-        linux-amd64 = "sha256-7FqreDBr85vgjCEr8WyCqOoG0Y9SbrVjVF3LCJuMoxw=";
-      };
-    };
     "v5.0.0-rc3" = {
       filename = "mantrachaind-5.0.0-rc3-${platform}.tar.gz";
       sha256 = {
