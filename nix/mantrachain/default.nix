@@ -9,7 +9,7 @@
   pkgsStatic,
 }:
 let
-  version = "v5.0";
+  version = "v6.0";
   pname = "mantrachain";
   wasmvmVersion = "v3.0.0";
 
@@ -84,8 +84,8 @@ buildGo123Module' rec {
   src = fetchFromGitHub {
     owner = "MANTRA-Chain";
     repo = pname;
-    rev = "0ccd1dc68a58c3c675f4caaba96567435475eec5";
-    hash = "sha256-uWR/pHUgY6u+GskEz0E56LoZ2rhTMcTNtzF6cNCeJhg=";
+    rev = "5086ff3a45a85d8ffb7a43c70ff4bd87e53987b1";
+    hash = "sha256-Zv2SAj7rWxdIfjkhVns/lCgxtQysCS/EHDXjTDUpiy4=";
   };
   vendorHash = "sha256-BOYJVYrS9PjgD7MQ+fL9GjDh3b4212RkBHC/12POE10=";
   proxyVendor = true;
