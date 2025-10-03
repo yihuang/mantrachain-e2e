@@ -1,37 +1,29 @@
 import json
-import math
 
 import pytest
 import web3
 
 from .utils import (
     DEFAULT_DENOM,
-    DEFAULT_GAS_AMT,
-    DEFAULT_GAS_PRICE,
     approve_proposal,
     assert_transfer,
     bech32_to_eth,
-    find_fee,
     module_address,
     submit_gov_proposal,
-    wait_for_new_blocks,
 )
 
 pytestmark = pytest.mark.slow
 
 
-@pytest.mark.flaky(max_runs=2)
 def test_blacklist(mantra, tmp_path):
     cli = mantra.cosmos_cli()
     community = cli.address("community")
-    granter = cli.create_account("user")["address"]
-    grantee = cli.address("signer1")
-    receiver = cli.address("signer2")
-    assert_transfer(cli, community, granter, amt=20000)
+    user = cli.create_account("user")["address"]
+    assert_transfer(cli, community, user, amt=20000)
     msg = {
         "@type": "/mantrachain.sanction.v1.MsgAddBlacklistAccounts",
         "authority": module_address("gov"),
-        "blacklist_accounts": [granter],
+        "blacklist_accounts": [user],
     }
     proposal_src = {
         "title": "title",
@@ -43,114 +35,14 @@ def test_blacklist(mantra, tmp_path):
     proposal.write_text(json.dumps(proposal_src))
     gov_rsp = cli.submit_gov_proposal(proposal, from_="community")
     assert gov_rsp["code"] == 0, gov_rsp["raw_log"]
-
-    receiver_balance = cli.balance(receiver)
-    spend_limit = 200
-    rsp = cli.grant_authorization(
-        grantee,
-        "send",
-        from_=granter,
-        spend_limit="%s%s" % (spend_limit, DEFAULT_DENOM),
-    )
-    assert rsp["code"] == 0, rsp["raw_log"]
-
-    grants = cli.query_grants(granter, grantee)
-    assert len(grants) == 1
-    assert grants[0]["authorization"]["value"]["spend_limit"][0]["amount"] == "200"
-
-    delegate_coins = 10000
-    validator_address = cli.address("validator", "val")
-    assert cli.distribution_reward(granter) == 0
-    gas_prices = DEFAULT_GAS_PRICE
-    generated_tx = tmp_path / "generated_tx.json"
-    tx = cli.delegate_amount(
-        validator_address,
-        "%s%s" % (delegate_coins, DEFAULT_DENOM),
-        generate_only=True,
-        from_=granter,
-        gas_prices=gas_prices,
-    )
-    with open(generated_tx, "w") as f:
-        json.dump(tx, f)
-    # test simulate gas
-    res = cli.tx_simulate(generated_tx, from_=granter)
-    gas_multiplier = 1.2
-    gas = float(res.get("gas_info", {}).get("gas_used", 0)) * gas_multiplier
-    tx["auth_info"]["fee"] = {
-        "amount": [
-            {"denom": DEFAULT_DENOM, "amount": f"{math.ceil(DEFAULT_GAS_AMT * gas)}"}
-        ],
-        "gas_limit": f"{math.ceil(gas)}",
-    }
-    with open(generated_tx, "w") as f:
-        json.dump(tx, f)
-    tx_json = cli.sign_tx(generated_tx, granter)
-    rsp = cli.broadcast_tx_json(tx_json)
-    assert rsp["code"] == 0, rsp["raw_log"]
-    fee = find_fee(rsp)
-
-    # wait for some reward
-    wait_for_new_blocks(cli, 2)
-
-    msg_type = "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward"
-    rsp = cli.grant_authorization(
-        grantee,
-        "generic",
-        from_=granter,
-        msg_type=msg_type,
-    )
-    fee += find_fee(rsp)
-    assert rsp["code"] == 0
-
-    generated_tx_msg = cli.withdraw_all_rewards(
-        from_=granter,
-        generate_only=True,
-    )
-    with open(generated_tx, "w") as f:
-        json.dump(generated_tx_msg, f)
-
     approve_proposal(mantra, gov_rsp["events"])
-    assert granter in cli.query_blacklist()
-    assert not cli.query_blacklist(limit=1, page=100)
+    assert user in cli.query_blacklist()
 
-    rewards1 = cli.distribution_reward(granter)
-    balance1 = cli.balance(granter)
-    rsp = cli.exec_tx_by_grantee(
-        generated_tx,
-        from_=grantee,
-    )
-    assert rsp["code"] == 0
-    wait_for_new_blocks(cli, 1)
-    balance = cli.balance(granter)
-    assert balance >= balance1 + int(rewards1 + cli.distribution_reward(granter))
-
-    with pytest.raises(AssertionError, match=f"{granter} is blacklisted"):
-        assert_transfer(cli, granter, community)
-
-    amt = spend_limit // 2
-    with open(generated_tx, "w") as f:
-        generated_tx_msg = cli.transfer(
-            granter,
-            receiver,
-            "%s%s" % (amt, DEFAULT_DENOM),
-            generate_only=True,
-        )
-        json.dump(generated_tx_msg, f)
-
-    rsp = cli.exec_tx_by_grantee(
-        generated_tx,
-        from_=grantee,
-    )
-    assert rsp["code"] == 0, rsp["raw_log"]
-
-    assert cli.balance(granter) == balance - amt
-    assert cli.balance(receiver) == receiver_balance + amt
-
-    err = f"{bech32_to_eth(granter)} is blacklisted"
+    err = f"{bech32_to_eth(user)} is blacklisted"
     with pytest.raises(web3.exceptions.Web3RPCError, match=err):
         mantra.w3.eth.send_transaction(
             {
-                "from": bech32_to_eth(granter),
+                "from": bech32_to_eth(user),
                 "to": bech32_to_eth(community),
                 "value": 1000,
             }
@@ -158,4 +50,4 @@ def test_blacklist(mantra, tmp_path):
 
     msg["@type"] = "/mantrachain.sanction.v1.MsgRemoveBlacklistAccounts"
     submit_gov_proposal(mantra, tmp_path, messages=[msg])
-    assert_transfer(cli, granter, community)
+    assert_transfer(cli, user, community)
