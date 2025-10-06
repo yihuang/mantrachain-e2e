@@ -84,6 +84,15 @@ class BondStatus(Enum):
     UNBONDING = "BOND_STATUS_UNBONDING"
     BONDED = "BOND_STATUS_BONDED"
 
+    def to_int(self):
+        mapping = {
+            BondStatus.UNSPECIFIED: 0,
+            BondStatus.UNBONDED: 1,
+            BondStatus.UNBONDING: 2,
+            BondStatus.BONDED: 3,
+        }
+        return mapping[self]
+
 
 class Contract:
     def __init__(self, name, private_key=KEYS["community"], chain_id=EVM_CHAIN_ID):

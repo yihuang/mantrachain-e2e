@@ -20,6 +20,7 @@ from .utils import (
     WEI_PER_ETH,
     WEI_PER_UOM,
     BondStatus,
+    bech32_to_eth,
     find_log_event_attrs,
     wait_for_block,
     wait_for_block_time,
@@ -28,6 +29,9 @@ from .utils import (
 
 DELEGATE = ContractFunction.from_abi("delegate(address,string,uint256)")
 UNDELEGATE = ContractFunction.from_abi("undelegate(address,string,uint256)")
+VALIDATOR = ContractFunction.from_abi(
+    "validator(address)((string,string,bool,uint8,uint256,uint256,string,int64,int64,uint256,uint256))"  # noqa: E501
+)
 STAKING = to_checksum_address("0x0000000000000000000000000000000000000800")
 
 
@@ -248,6 +252,7 @@ async def test_min_self_delegation(custom_mantra):
     acct = Account.from_mnemonic(mnemonic)
     cli = custom_mantra.cosmos_cli(i=3)
     w3 = custom_mantra.async_w3
+    addr = bech32_to_eth(cli.address("validator"))
     val = cli.address("validator", bech="val")
     amt = 9_000_000_000_000_000_000
     gas = 400_000
@@ -255,11 +260,13 @@ async def test_min_self_delegation(custom_mantra):
         w3, acct, to=STAKING, gas=gas
     )
     assert res.status == 1
-    assert cli.validator(val).get("status") == BondStatus.BONDED.value
+    res = await VALIDATOR(addr).call(w3, to=STAKING)
+    assert res[3] == BondStatus.BONDED.to_int()
     amt = 1
     res = await UNDELEGATE(acct.address, val, amt).transact(
         w3, acct, to=STAKING, gas=gas
     )
     assert res.status == 1
     wait_for_new_blocks(cli, 2)
-    assert cli.validator(val).get("status") == BondStatus.UNBONDING.value
+    res = await VALIDATOR(addr).call(w3, to=STAKING)
+    assert res[3] == BondStatus.UNBONDING.to_int()
