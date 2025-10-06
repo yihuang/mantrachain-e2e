@@ -10,7 +10,8 @@ import web3
 from dateutil.parser import isoparse
 from eth_account import Account
 from eth_contract.contract import ContractFunction
-from eth_utils import to_checksum_address
+from eth_utils import abi, to_checksum_address
+from hexbytes import HexBytes
 from pystarport import cluster
 
 from .network import setup_custom_mantra
@@ -20,6 +21,7 @@ from .utils import (
     WEI_PER_ETH,
     WEI_PER_UOM,
     BondStatus,
+    address_to_bytes32,
     bech32_to_eth,
     find_log_event_attrs,
     wait_for_block,
@@ -69,11 +71,20 @@ async def test_staking_delegate(mantra):
     bonded = cli.staking_pool()
     balance_bf = await w3.eth.get_balance(acct.address)
     res = await get_validators(w3)
-    validator = cli.debug_addr(res[0][0], bech="val")
+    addr = res[0][0]
+    validator = cli.debug_addr(addr, bech="val")
     res = await DELEGATE(acct.address, validator, amt).transact(
         w3, acct.address, to=STAKING
     )
     assert res.status == 1
+    delegate = abi.event_signature_to_log_topic(
+        "Delegate(address,address,uint256,uint256)"
+    ).hex()
+    assert res.logs[0].topics == [
+        HexBytes(delegate),
+        address_to_bytes32(acct.address),
+        address_to_bytes32(addr),
+    ]
     fee = res["gasUsed"] * res["effectiveGasPrice"]
     assert cli.staking_pool() == bonded + amt
     balance = await w3.eth.get_balance(acct.address)
@@ -105,10 +116,19 @@ async def test_staking_unbond(mantra):
 
     unbonded_bf = cli.staking_pool(bonded=False)
     unbonded_amt = 2
-    res = await UNDELEGATE(acct.address, val_ops[i], unbonded_amt).transact(
+    res = await UNDELEGATE(acct.address, val_ops[0], unbonded_amt).transact(
         w3, acct.address, to=STAKING
     )
     assert res.status == 1
+    addr = cli.debug_addr(val_ops[0], bech="hex")
+    unbond = abi.event_signature_to_log_topic(
+        "Unbond(address,address,uint256,uint256)"
+    ).hex()
+    assert res.logs[0].topics == [
+        HexBytes(unbond),
+        address_to_bytes32(acct.address),
+        address_to_bytes32(addr),
+    ]
     fee += res["gasUsed"] * res["effectiveGasPrice"]
     assert cli.staking_pool(bonded=False) == unbonded_bf + unbonded_amt
     blk = res["blockNumber"]
@@ -149,6 +169,15 @@ async def test_staking_redelegate(mantra):
         acct.address, val_ops[0], val_ops[1], redelegate_amt
     ).transact(w3, acct.address, to=STAKING)
     assert res.status == 1
+    redelegate = abi.event_signature_to_log_topic(
+        "Redelegate(address,address,address,uint256,uint256)"
+    ).hex()
+    assert res.logs[0].topics == [
+        HexBytes(redelegate),
+        address_to_bytes32(acct.address),
+        address_to_bytes32(cli.debug_addr(val_ops[0], bech="hex")),
+        address_to_bytes32(cli.debug_addr(val_ops[1], bech="hex")),
+    ]
     fee += res["gasUsed"] * res["effectiveGasPrice"]
     _, balance = await DELEGATION(acct.address, val_ops[0]).call(w3, to=STAKING)
     assert balance_bf[1] == balance[1] + redelegate_amt
@@ -156,7 +185,6 @@ async def test_staking_redelegate(mantra):
 
 async def test_join_validator(mantra):
     w3 = mantra.async_w3
-    cli = mantra.cosmos_cli()
     mnemonic = os.getenv("VALIDATOR4_MNEMONIC")
     acct = Account.from_mnemonic(mnemonic)
     data = Path(mantra.base_dir).parent
@@ -169,9 +197,9 @@ async def test_join_validator(mantra):
     staked = 10_000_000_000_000_000_000
     fund = f"{staked + 1_000_000}{DEFAULT_DENOM}"
     val_addr = cli.address("validator", bech="val")
-    addr = cli.address("validator")
+    addr = cli0.debug_addr(val_addr, bech="hex")
 
-    res = cli0.transfer(cli0.address("community"), addr, fund)
+    res = cli0.transfer(cli0.address("community"), cli.address("validator"), fund)
     assert res["code"] == 0, res
     # Modify the json-rpc addresses to avoid conflict
     cluster.edit_app_cfg(
@@ -215,7 +243,10 @@ async def test_join_validator(mantra):
         desc, commission, min_self_delegation, acct.address, pubkey, staked
     ).transact(w3, acct, to=STAKING, gas=200_000)
     assert res.status == 1
-
+    create_validator = abi.event_signature_to_log_topic(
+        "CreateValidator(address,uint256)"
+    ).hex()
+    assert res.logs[0].topics == [HexBytes(create_validator), address_to_bytes32(addr)]
     time.sleep(2)
     assert len(cli.validators()) == count + 1
 
@@ -244,6 +275,10 @@ async def test_join_validator(mantra):
         w3, acct, to=STAKING
     )
     assert res.status == 1
+    edit_validator = abi.event_signature_to_log_topic(
+        "EditValidator(address,int256,int256)"
+    ).hex()
+    assert res.logs[0].topics == [HexBytes(edit_validator), address_to_bytes32(addr)]
     assert cli.validator(val_addr)["description"]["moniker"] == "awesome node"
 
 
@@ -267,6 +302,14 @@ async def test_min_self_delegation(custom_mantra):
         w3, acct, to=STAKING, gas=gas
     )
     assert res.status == 1
+    unbond = abi.event_signature_to_log_topic(
+        "Unbond(address,address,uint256,uint256)"
+    ).hex()
+    assert res.logs[0].topics == [
+        HexBytes(unbond),
+        address_to_bytes32(acct.address),
+        address_to_bytes32(addr),
+    ]
     wait_for_new_blocks(cli, 2)
     res = await VALIDATOR(addr).call(w3, to=STAKING)
     assert res[3] == BondStatus.UNBONDING.to_int()

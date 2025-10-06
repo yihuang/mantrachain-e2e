@@ -128,7 +128,12 @@ class CosmosCLI:
 
     def debug_addr(self, eth_addr, bech="acc"):
         output = self.raw("debug", "addr", eth_addr).decode().strip().split("\n")
-        prefix = "Bech32 Val" if bech == "val" else "Bech32 Acc"
+        if bech == "val":
+            prefix = "Bech32 Val"
+        elif bech == "hex":
+            prefix = "Address hex:"
+        else:
+            prefix = "Bech32 Acc"
         for line in output:
             if line.startswith(prefix):
                 return line.split()[-1]
