@@ -18,8 +18,8 @@ from .network import setup_custom_mantra
 from .utils import (
     ACCOUNTS,
     DEFAULT_DENOM,
+    WEI_PER_DENOM,
     WEI_PER_ETH,
-    WEI_PER_UOM,
     BondStatus,
     address_to_bytes32,
     bech32_to_eth,
@@ -92,7 +92,7 @@ async def test_staking_delegate(mantra):
     fee = res["gasUsed"] * res["effectiveGasPrice"]
     assert cli.staking_pool() == bonded + amt
     balance = await w3.eth.get_balance(acct.address)
-    assert balance_bf == balance + amt * WEI_PER_UOM + fee
+    assert balance_bf == balance + amt * WEI_PER_DENOM + fee
 
 
 async def test_staking_unbond(mantra):
@@ -116,7 +116,7 @@ async def test_staking_unbond(mantra):
 
     assert cli.staking_pool() == bonded_bf + sum(amounts)
     balance = await w3.eth.get_balance(acct.address)
-    assert balance == balance_bf - sum(amounts) * WEI_PER_UOM - fee
+    assert balance == balance_bf - sum(amounts) * WEI_PER_DENOM - fee
 
     unbonded_bf = cli.staking_pool(bonded=False)
     unbonded_amt = 2
@@ -143,7 +143,7 @@ async def test_staking_unbond(mantra):
     )
     wait_for_block_time(cli, isoparse(data["completion_time"]) + timedelta(seconds=1))
     balance = await w3.eth.get_balance(acct.address)
-    assert balance == balance_bf - (sum(amounts) - unbonded_amt) * WEI_PER_UOM - fee
+    assert balance == balance_bf - (sum(amounts) - unbonded_amt) * WEI_PER_DENOM - fee
 
 
 async def test_staking_redelegate(mantra):

@@ -15,6 +15,7 @@ from .utils import (
     ADDRS,
     DEFAULT_DENOM,
     KEYS,
+    WEI_PER_DENOM,
     Contract,
     Greeter,
     RevertTestContract,
@@ -563,7 +564,7 @@ def test_multisig_cosmos(mantra, connect_mantra, tmp_path):
     cli = connect_mantra.cosmos_cli(tmp_path)
     recover1 = "recover1"
     recover2 = "recover2"
-    amt = 6000
+    amt = 6_000_000_000_000_000_000 // WEI_PER_DENOM
     addr_recover1 = cli.create_account(
         recover1,
         coin_type=118,

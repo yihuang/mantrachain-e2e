@@ -7,7 +7,7 @@ from web3 import Web3
 from .network import setup_custom_mantra
 from .utils import (
     ADDRS,
-    WEI_PER_UOM,
+    WEI_PER_DENOM,
     adjust_base_fee,
     module_address,
     send_transaction,
@@ -132,7 +132,7 @@ def test_percentiles(custom_mantra):
 def update_feemarket_param(node, tmp_path, new_multiplier=2, new_denominator=200000000):
     cli = node.cosmos_cli()
     p = cli.get_params("feemarket")["params"]
-    new_base_fee = f"{NEW_BASE_FEE/WEI_PER_UOM}"
+    new_base_fee = f"{NEW_BASE_FEE/WEI_PER_DENOM}"
     p["base_fee"] = new_base_fee
     p["elasticity_multiplier"] = new_multiplier
     p["base_fee_change_denominator"] = new_denominator

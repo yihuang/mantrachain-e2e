@@ -60,14 +60,13 @@ DEFAULT_DENOM = os.getenv("EVM_DENOM", "uom")
 CHAIN_ID = os.getenv("CHAIN_ID", "mantra-canary-net-1")
 EVM_CHAIN_ID = int(os.getenv("EVM_CHAIN_ID", 7888))
 # the default initial base fee used by integration tests
-DEFAULT_GAS_AMT = 0.01
+DEFAULT_GAS_AMT = float(os.getenv("DEFAULT_GAS_AMT", 0.01))
 DEFAULT_GAS_PRICE = f"{DEFAULT_GAS_AMT}{DEFAULT_DENOM}"
 DEFAULT_GAS = 200000
 DEFAULT_FEE = int(DEFAULT_GAS_AMT * DEFAULT_GAS)
 WEI_PER_ETH = 10**18  # 10^18 wei == 1 ether
-UOM_PER_OM = 10**6  # 10^6 uom == 1 om
-WEI_PER_UOM = 10**12  # 10^12 wei == 1 uom
-ADDRESS_PREFIX = "mantra"
+WEI_PER_DENOM = int(os.getenv("WEI_PER_DENOM", 10**12))  # 10^12 wei == 1 uom
+ADDRESS_PREFIX = os.getenv("ADDRESS_PREFIX", "mantra")
 
 
 WETH_SALT = 999
@@ -531,9 +530,8 @@ def assert_balance(cli, w3, name, evm=False):
         addr = name
     uom = get_balance(cli, name)
     wei = w3.eth.get_balance(bech32_to_eth(addr))
-    assert uom == wei // WEI_PER_UOM
+    assert uom == wei // WEI_PER_DENOM
     print(
-        f"{name} contains uom: {uom}, om: {uom // UOM_PER_OM},",
         f"wei: {wei}, ether: {wei // WEI_PER_ETH}.",
     )
     return wei if evm else uom
@@ -779,7 +777,7 @@ def approve_proposal(n, events, event_query_tx=False):
             proposal_id,
             "yes",
             event_query_tx,
-            gas_prices=f"0.8{DEFAULT_DENOM}",
+            gas_prices=f"{80 * DEFAULT_GAS_AMT}{DEFAULT_DENOM}",
         )
         assert rsp["code"] == 0, rsp["raw_log"]
     wait_for_new_blocks(cli, 1)
@@ -846,7 +844,7 @@ def adjust_base_fee(parent_fee, gas_limit, gas_used, params):
     delta = parent_fee * abs(gas_target - gas_used) // gas_target // change_denominator
     # https://github.com/cosmos/evm/blob/0e511d32206b1ac709a0eb0ddb1aa21d29e833b8/x/feemarket/keeper/eip1559.go#L93
     if gas_target > gas_used:
-        min_gas_price = float(params.get("min_gas_price", 0)) * WEI_PER_UOM
+        min_gas_price = float(params.get("min_gas_price", 0)) * WEI_PER_DENOM
         return max(parent_fee - delta, min_gas_price)
     else:
         return parent_fee + max(delta, 1)
@@ -864,7 +862,7 @@ def assert_duplicate(rpc, height):
         values.add(str)
 
 
-def fund_acc(w3, acc, fund=4000000000000000000):
+def fund_acc(w3, acc, fund=4_000_000_000_000_000_000):
     addr = acc.address
     if w3.eth.get_balance(addr, "latest") == 0:
         tx = {"to": addr, "value": fund, "gasPrice": w3.eth.gas_price}
@@ -878,8 +876,9 @@ def do_multisig(cli, tmp_path, signer1_name, signer2_name, multisig_name):
     signer2 = cli.address(signer2_name)
     cli.make_multisig(multisig_name, signer1_name, signer2_name)
     multi_addr = cli.address(multisig_name)
-    amt = 4000
-    cli.transfer(signer1, multi_addr, f"{amt}{DEFAULT_DENOM}")
+    amt = 4_000_000_000_000_000_000 // WEI_PER_DENOM
+    rsp = cli.transfer(signer1, multi_addr, f"{amt}{DEFAULT_DENOM}")
+    assert rsp["code"] == 0, rsp["raw_log"]
     acc = cli.account(multi_addr)
     res = cli.account_by_num(acc["account"]["value"]["account_number"])
     assert res["account_address"] == multi_addr

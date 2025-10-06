@@ -6,7 +6,7 @@ from .network import setup_custom_mantra
 from .utils import (
     ADDRS,
     KEYS,
-    WEI_PER_UOM,
+    WEI_PER_DENOM,
     adjust_base_fee,
     send_transaction,
     w3_wait_for_block,
@@ -120,5 +120,5 @@ def test_base_fee_adjustment(custom_cluster):
     call = w3.provider.make_request
     res = call("eth_feeHistory", [2, "latest", []])["result"]["baseFeePerGas"]
     # nextBaseFee should align max with minGasPrice in eth_feeHistory
-    min_gas_price = max(float(params.get("min_gas_price", 0)) * WEI_PER_UOM, 1)
+    min_gas_price = max(float(params.get("min_gas_price", 0)) * WEI_PER_DENOM, 1)
     assert all(fee == hex(int(min_gas_price)) for fee in res), res

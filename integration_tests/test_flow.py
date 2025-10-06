@@ -6,7 +6,7 @@ from .network import ConnectMantra
 from .utils import (
     ADDRS,
     DEFAULT_FEE,
-    WEI_PER_UOM,
+    WEI_PER_DENOM,
     assert_balance,
     derive_new_account,
     eth_to_bech32,
@@ -77,7 +77,7 @@ def test_flow(mantra, connect_mantra: ConnectMantra, tmp_path):
         assert assert_balance(cli, w3, addr_test2, True) == balance2_evm
         fee_evm = receipt.gasUsed * receipt.effectiveGasPrice
         balance1_evm -= value + fee_evm
-        balance1 = balance1_evm // WEI_PER_UOM
+        balance1 = balance1_evm // WEI_PER_DENOM
         assert assert_balance(cli, w3, addr_test1) == balance1
         assert assert_balance(cli, w3, addr_test1, True) == balance1_evm
 
