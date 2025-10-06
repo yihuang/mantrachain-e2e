@@ -27,4 +27,20 @@
       },
     },
   },
+  inveniemd: {
+    evm_denom: 'anvnm',
+    cmd: 'inveniemd',
+    evm_chain_id: 7888,
+    evm: {
+      params: {
+        allow_unprotected_txs: true,
+      },
+    },
+    feemarket: {
+      params: {
+        base_fee: '1000000000',
+        min_gas_price: '0',
+      },
+    },
+  },
 }
