@@ -126,6 +126,14 @@ class CosmosCLI:
                 raise
         return output.strip().decode()
 
+    def debug_addr(self, eth_addr, bech="acc"):
+        output = self.raw("debug", "addr", eth_addr).decode().strip().split("\n")
+        prefix = "Bech32 Val" if bech == "val" else "Bech32 Acc"
+        for line in output:
+            if line.startswith(prefix):
+                return line.split()[-1]
+        return eth_addr
+
     def account(self, addr, **kwargs):
         return json.loads(
             self.raw("q", "auth", "account", addr, **(self.get_base_kwargs() | kwargs))
@@ -325,7 +333,6 @@ class CosmosCLI:
         return int(res["bonded_tokens" if bonded else "not_bonded_tokens"])
 
     def delegate_amount(self, validator_address, amt, generate_only=False, **kwargs):
-        default_kwargs = self.get_kwargs()
         rsp = json.loads(
             self.raw(
                 "tx",
@@ -335,12 +342,137 @@ class CosmosCLI:
                 amt,
                 "--generate-only" if generate_only else None,
                 "-y",
-                **(default_kwargs | kwargs),
+                **(self.get_kwargs_with_gas() | kwargs),
             )
         )
         if rsp.get("code") == 0:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
+
+    def unbond_amount(self, to_addr, amt, generate_only=False, **kwargs):
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "staking",
+                "unbond",
+                to_addr,
+                amt,
+                "-y",
+                "--generate-only" if generate_only else None,
+                "-y",
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def create_validator(
+        self,
+        amt,
+        options,
+        generate_only=False,
+        **kwargs,
+    ):
+        options = {
+            "commission-max-change-rate": "0.01",
+            "commission-rate": "0.1",
+            "commission-max-rate": "0.2",
+            "min-self-delegation": "1",
+            "amount": amt,
+        } | options
+
+        if "pubkey" not in options:
+            pubkey = (
+                self.raw(
+                    "comet",
+                    "show-validator",
+                    home=self.data_dir,
+                )
+                .strip()
+                .decode()
+            )
+            options["pubkey"] = json.loads(pubkey)
+
+        with tempfile.NamedTemporaryFile("w") as fp:
+            json.dump(options, fp)
+            fp.flush()
+            raw = self.raw(
+                "tx",
+                "staking",
+                "create-validator",
+                fp.name,
+                "-y",
+                "--generate-only" if generate_only else None,
+                "-y",
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        rsp = json.loads(raw)
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def delegation(self, del_addr, val_addr, **kwargs):
+        res = json.loads(
+            self.raw(
+                "q",
+                "staking",
+                "delegation",
+                del_addr,
+                val_addr,
+                **(self.get_base_kwargs() | kwargs),
+            )
+        )
+        return res.get("delegation_response") or res
+
+    def delegations(self, del_addr, **kwargs):
+        res = json.loads(
+            self.raw(
+                "q",
+                "staking",
+                "delegations",
+                del_addr,
+                **(self.get_base_kwargs() | kwargs),
+            )
+        )
+        return res.get("delegation_responses") or res
+
+    def redelegate(
+        self,
+        from_validator,
+        to_validator,
+        amt,
+        generate_only=False,
+        **kwargs,
+    ):
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "staking",
+                "redelegate",
+                from_validator,
+                to_validator,
+                amt,
+                "--generate-only" if generate_only else None,
+                "-y",
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def validator(self, addr, **kwargs):
+        res = json.loads(
+            self.raw(
+                "q",
+                "staking",
+                "validator",
+                addr,
+                **(self.get_base_kwargs() | kwargs),
+            )
+        )
+        return res.get("validator") or res
 
     def tx_simulate(self, tx, **kwargs):
         default_kwargs = self.get_kwargs()
