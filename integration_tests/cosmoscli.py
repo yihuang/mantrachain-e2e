@@ -912,7 +912,7 @@ class CosmosCLI:
                 "disabled-list",
                 **(self.get_base_kwargs() | kwargs),
             )
-        ).get("disabled_list")
+        ).get("disabled_list", [])
 
     def grant_authorization(self, grantee, authz_type, **kwargs):
         rsp = json.loads(

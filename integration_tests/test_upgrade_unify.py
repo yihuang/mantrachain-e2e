@@ -113,6 +113,11 @@ async def exec(c, tmp_path):
 
     pair = cli.query_erc20_token_pair(denom)
     assert pair["contract_owner"] == "OWNER_MODULE"
+    expected = [
+        "wasm/cosmos.authz.v1beta1.MsgExec",
+        "wasm/cosmos.evm.erc20.v1.MsgRegisterERC20",
+    ]
+    assert cli.query_disabled_list() == expected
 
 
 async def test_cosmovisor_upgrade(custom_mantra: Mantra, tmp_path):

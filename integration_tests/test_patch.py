@@ -14,6 +14,7 @@ def test_int_overflow(mantra, tmp_path):
     assert rsp["code"] == 0, rsp["raw_log"]
     assert not cli.query_disabled_list()
     msg_type_urls = ["/cosmos.distribution.v1beta1.MsgDepositValidatorRewardsPool"]
+    gas = 300_000
     submit_gov_proposal(
         mantra,
         tmp_path,
@@ -24,6 +25,7 @@ def test_int_overflow(mantra, tmp_path):
                 "msg_type_urls": msg_type_urls,
             }
         ],
+        gas=gas,
     )
     assert cli.query_disabled_list() == msg_type_urls
 
@@ -37,3 +39,17 @@ def test_int_overflow(mantra, tmp_path):
     )
     assert rsp["code"] != 0
     assert "tx type not allowed" in rsp["raw_log"]
+
+    submit_gov_proposal(
+        mantra,
+        tmp_path,
+        messages=[
+            {
+                "@type": "/cosmos.circuit.v1.MsgResetCircuitBreaker",
+                "authority": module_address("gov"),
+                "msg_type_urls": msg_type_urls,
+            }
+        ],
+        gas=gas,
+    )
+    assert cli.query_disabled_list() == []
