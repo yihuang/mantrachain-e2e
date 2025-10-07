@@ -29,10 +29,14 @@ from .utils import (
     wait_for_new_blocks,
 )
 
-DELEGATE = ContractFunction.from_abi("delegate(address,string,uint256)")
-UNDELEGATE = ContractFunction.from_abi("undelegate(address,string,uint256)")
+DELEGATE = ContractFunction.from_abi(
+    "function delegate(address,string,uint256) external returns (bool)"
+)
+UNDELEGATE = ContractFunction.from_abi(
+    "function undelegate(address,string,uint256) external returns (int64)"
+)
 VALIDATOR = ContractFunction.from_abi(
-    "validator(address)((string,string,bool,uint8,uint256,uint256,string,int64,int64,uint256,uint256))"  # noqa: E501
+    "function validator(address) external returns ((string,string,bool,uint8,uint256,uint256,string,int64,int64,uint256,uint256))"  # noqa: E501
 )
 STAKING = to_checksum_address("0x0000000000000000000000000000000000000800")
 
@@ -54,7 +58,7 @@ def custom_mantra(request, tmp_path_factory):
 
 async def get_validators(w3):
     VALIDATORS = ContractFunction.from_abi(
-        "validators(string,(bytes,uint64,uint64,bool,bool))((string,string,bool,uint8,uint256,uint256,string,int64,int64,uint256,uint256)[],(bytes,uint64))"  # noqa: E501
+        "function validators(string,(bytes,uint64,uint64,bool,bool)) external returns ((string,string,bool,uint8,uint256,uint256,string,int64,int64,uint256,uint256)[],(bytes,uint64))"  # noqa: E501
     )
     res, _ = await VALIDATORS(BondStatus.BONDED.value, [b"", 0, 10, False, False]).call(
         w3, to=STAKING
@@ -160,11 +164,13 @@ async def test_staking_redelegate(mantra):
         fee += res["gasUsed"] * res["effectiveGasPrice"]
 
     DELEGATION = ContractFunction.from_abi(
-        "delegation(address,string)(uint256,(string,uint256))"
+        "function delegation(address,string) external returns (uint256,(string,uint256))"  # noqa: E501
     )
     _, balance_bf = await DELEGATION(acct.address, val_ops[0]).call(w3, to=STAKING)
     redelegate_amt = 2
-    REDELEGATE = ContractFunction.from_abi("redelegate(address,string,string,uint256)")
+    REDELEGATE = ContractFunction.from_abi(
+        "function redelegate(address,string,string,uint256) external returns (int64)"
+    )
     res = await REDELEGATE(
         acct.address, val_ops[0], val_ops[1], redelegate_amt
     ).transact(w3, acct.address, to=STAKING)
@@ -237,7 +243,7 @@ async def test_join_validator(mantra):
     ]
     min_self_delegation = 1
     CREATE_VALIDATOR = ContractFunction.from_abi(
-        "createValidator((string,string,string,string,string),(uint256,uint256,uint256),uint256,address,string,uint256)"  # noqa: E501
+        "function createValidator((string,string,string,string,string),(uint256,uint256,uint256),uint256,address,string,uint256) external returns (bool)"  # noqa: E501
     )
     res = await CREATE_VALIDATOR(
         desc, commission, min_self_delegation, acct.address, pubkey, staked
@@ -262,7 +268,7 @@ async def test_join_validator(mantra):
     }
 
     EDIT_VALIDATOR = ContractFunction.from_abi(
-        "editValidator((string,string,string,string,string),address,int256,int256)"
+        "function editValidator((string,string,string,string,string),address,int256,int256) external returns (bool)"  # noqa: E501
     )
     msg = "commission cannot be changed more than once in 24h"
     with pytest.raises(web3.exceptions.ContractLogicError, match=msg):

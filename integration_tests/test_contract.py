@@ -103,7 +103,9 @@ async def test_flow(mantra, connect_mantra):
     height = await w3.eth.block_number
     await w3_wait_for_new_blocks_async(w3, 1)
 
-    blockhash = ContractFunction.from_abi("getBlockHash(uint256)(bytes32)")
+    blockhash = ContractFunction.from_abi(
+        "function getBlockHash(uint256) external returns (bytes32)"
+    )
     res = (await blockhash(height).call(w3, to=contract)).hex()
     blk = await w3.eth.get_block(height)
     assert res == blk.hash.hex(), res
