@@ -25,7 +25,7 @@ def test_connect_flow(connect_mantra, tmp_path):
 def test_flow(mantra, connect_mantra: ConnectMantra, tmp_path):
     community = "community"
     recover = "recover"
-    amt = 4000
+    amt = 4_000_000_000_000_000 // WEI_PER_DENOM
     # recover cosmos addr outside from node
     cli = connect_mantra.cosmos_cli(tmp_path)
     w3 = connect_mantra.w3

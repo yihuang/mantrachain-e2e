@@ -17,6 +17,7 @@ from pystarport import cluster
 from .network import setup_custom_mantra
 from .utils import (
     ACCOUNTS,
+    CMD,
     DEFAULT_DENOM,
     WEI_PER_DENOM,
     WEI_PER_ETH,
@@ -195,13 +196,13 @@ async def test_join_validator(mantra):
     acct = Account.from_mnemonic(mnemonic)
     data = Path(mantra.base_dir).parent
     chain_id = mantra.config["chain_id"]
-    clustercli = cluster.ClusterCLI(data, cmd="mantrachaind", chain_id=chain_id)
+    clustercli = cluster.ClusterCLI(data, cmd=CMD, chain_id=chain_id)
     moniker = "new joined"
     node_index = clustercli.create_node(moniker=moniker, mnemonic=mnemonic)
     cli = clustercli.cosmos_cli(node_index)
     cli0 = mantra.cosmos_cli()
     staked = 10_000_000_000_000_000_000
-    fund = f"{staked + 1_000_000}{DEFAULT_DENOM}"
+    fund = f"{staked + 1_000_000_000_000_000_000//WEI_PER_DENOM}{DEFAULT_DENOM}"
     val_addr = cli.address("validator", bech="val")
     addr = cli0.debug_addr(val_addr, bech="hex")
 

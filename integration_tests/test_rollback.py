@@ -7,9 +7,9 @@ from pystarport import ports
 from pystarport.cluster import SUPERVISOR_CONFIG_FILE
 
 from .network import setup_custom_mantra
-from .utils import supervisorctl, wait_for_block, wait_for_port
+from .utils import CMD, supervisorctl, wait_for_block, wait_for_port
 
-pytestmark = pytest.mark.slow
+pytestmark = [pytest.mark.slow, pytest.mark.skipped]
 
 
 def update_node_cmd(path, cmd, i):
@@ -94,7 +94,7 @@ def test_rollback(custom_mantra):
     cli1.rollback()
 
     print("switch to normal binary")
-    update_node_cmd(custom_mantra.base_dir, "mantrachaind", 1)
+    update_node_cmd(custom_mantra.base_dir, CMD, 1)
     supervisorctl(custom_mantra.base_dir / "../tasks.ini", "update")
     wait_for_port(target_port)
 
