@@ -877,7 +877,7 @@ def do_multisig(cli, tmp_path, signer1_name, signer2_name, multisig_name):
     signer2 = cli.address(signer2_name)
     cli.make_multisig(multisig_name, signer1_name, signer2_name)
     multi_addr = cli.address(multisig_name)
-    amt = 4_000_000_000_000_000_000 // WEI_PER_DENOM
+    amt = 4_000_000_000_000_000 // WEI_PER_DENOM
     rsp = cli.transfer(signer1, multi_addr, f"{amt}{DEFAULT_DENOM}")
     assert rsp["code"] == 0, rsp["raw_log"]
     acc = cli.account(multi_addr)

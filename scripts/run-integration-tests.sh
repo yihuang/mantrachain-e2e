@@ -8,6 +8,17 @@ export TMPDIR=/tmp
 cd "$SCRIPT_DIR/../integration_tests"
 
 TESTS_TO_RUN="${TESTS_TO_RUN:-all}"
+CHAIN_CONFIG="${CHAIN_CONFIG:-}"
+
+# pytest command with chain-config
+build_pytest_cmd() {
+  local base_cmd="$1"
+  if [[ -n "$CHAIN_CONFIG" ]]; then
+    echo "$base_cmd --chain-config $CHAIN_CONFIG"
+  else
+    echo "$base_cmd"
+  fi
+}
 
 load_env_file() {
   local env_file="$1"
@@ -22,16 +33,17 @@ load_env_file() {
   fi
 }
 
+load_env_file "$SCRIPT_DIR/.env"
+
 if [[ "$TESTS_TO_RUN" == "all" ]]; then
-  load_env_file "$SCRIPT_DIR/.env"
   echo "run all local tests"
-  pytest -s -vvv -m "not connect"
+  cmd=$(build_pytest_cmd "pytest -s -vvv -m \"not connect\"")
 elif [[ "$TESTS_TO_RUN" == "connect" ]]; then
-  load_env_file "$SCRIPT_DIR/.env"
   echo "run tests matching $TESTS_TO_RUN"
-  pytest -vv -s -m connect
+  cmd=$(build_pytest_cmd "pytest -vv -s -m connect")
 else
-  load_env_file "$SCRIPT_DIR/.env"
   echo "run tests matching $TESTS_TO_RUN"
-  pytest -vv -s -m "$TESTS_TO_RUN"
+  cmd=$(build_pytest_cmd "pytest -vv -s -m \"$TESTS_TO_RUN\"")
 fi
+
+eval $cmd
