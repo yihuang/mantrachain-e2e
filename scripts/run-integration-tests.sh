@@ -28,7 +28,6 @@ if [[ "$TESTS_TO_RUN" == "all" ]]; then
   pytest -s -vvv -m "not connect"
 elif [[ "$TESTS_TO_RUN" == "connect" ]]; then
   load_env_file "$SCRIPT_DIR/.env"
-  load_env_file "$SCRIPT_DIR/network.env"
   echo "run tests matching $TESTS_TO_RUN"
   pytest -vv -s -m connect
 else
