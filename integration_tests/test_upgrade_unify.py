@@ -109,7 +109,7 @@ async def exec(c, tmp_path):
 
     height = cli.block_height()
     target_height = height + 15
-    cli = do_upgrade(c, "v6.0.0-rc0", target_height)
+    cli = do_upgrade(c, "v6.0.0-provider-rc0", target_height)
 
     pair = cli.query_erc20_token_pair(denom)
     assert pair["contract_owner"] == "OWNER_MODULE"
