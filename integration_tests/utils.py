@@ -36,6 +36,7 @@ from eth_contract.utils import send_transaction as send_transaction_async
 from eth_contract.weth import WETH, WETH9_ARTIFACT
 from eth_utils import to_checksum_address
 from hexbytes import HexBytes
+from pystarport import cluster
 from web3 import AsyncWeb3
 from web3._utils.transactions import fill_nonce, fill_transaction_defaults
 
@@ -57,6 +58,7 @@ KEYS = {name: account.key for name, account in ACCOUNTS.items()}
 ADDRS = {name: account.address for name, account in ACCOUNTS.items()}
 
 DEFAULT_DENOM = os.getenv("EVM_DENOM", "uom")
+DEFAULT_EXTENDED_DENOM = os.getenv("EVM_EXTENDED_DENOM", "aom")
 CHAIN_ID = os.getenv("CHAIN_ID", "mantra-canary-net-1")
 EVM_CHAIN_ID = int(os.getenv("EVM_CHAIN_ID", 7888))
 # the default initial base fee used by integration tests
@@ -940,9 +942,9 @@ async def assert_create_erc20_denom(w3, signer):
         w3, signer, get_initcode(WETH9_ARTIFACT), salt=WETH_SALT
     )
     assert (await ERC20.fns.decimals().call(w3, to=WETH_ADDRESS)) == 18
-    total = await ERC20.fns.totalSupply().call(w3, to=WETH_ADDRESS)
-    signer1_balance_eth_bf = await ERC20.fns.balanceOf(signer).call(w3, to=WETH_ADDRESS)
-    assert total == signer1_balance_eth_bf == 0
+    total_bf = await ERC20.fns.totalSupply().call(w3, to=WETH_ADDRESS)
+    balance_bf = await ERC20.fns.balanceOf(signer).call(w3, to=WETH_ADDRESS)
+    assert total_bf == balance_bf
 
     weth = WETH(to=WETH_ADDRESS)
     erc20_denom = f"erc20:{WETH_ADDRESS}"
@@ -950,9 +952,9 @@ async def assert_create_erc20_denom(w3, signer):
     res = await weth.fns.deposit().transact(w3, signer, value=deposit_amt)
     assert res.status == 1
     total = await ERC20.fns.totalSupply().call(w3, to=WETH_ADDRESS)
-    signer1_balance_eth = await ERC20.fns.balanceOf(signer).call(w3, to=WETH_ADDRESS)
-    assert total == signer1_balance_eth == deposit_amt
-    signer1_balance_eth_bf = signer1_balance_eth
+    balance = await ERC20.fns.balanceOf(signer).call(w3, to=WETH_ADDRESS)
+    assert total == balance
+    assert (total - total_bf) == (balance - balance_bf) == deposit_amt
     return erc20_denom, total
 
 
@@ -1013,3 +1015,18 @@ async def assert_tf_flow(w3, receiver, signer1, signer2, tf_erc20_addr):
     receiver_balance = await ERC20.fns.balanceOf(receiver).call(w3, to=tf_erc20_addr)
     assert receiver_balance == receiver_balance_bf + approve_amt
     receiver_balance_bf = receiver_balance
+
+
+def edit_app_cfg(cli, i):
+    # Modify the json-rpc addresses to avoid conflict
+    cluster.edit_app_cfg(
+        cli.home(i) / "config/app.toml",
+        cli.base_port(i),
+        {
+            "json-rpc": {
+                "enable": True,
+                "address": "127.0.0.1:{EVMRPC_PORT}",
+                "ws-address": "127.0.0.1:{EVMRPC_PORT_WS}",
+            },
+        },
+    )

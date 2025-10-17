@@ -24,6 +24,7 @@ from .utils import (
     BondStatus,
     address_to_bytes32,
     bech32_to_eth,
+    edit_app_cfg,
     find_log_event_attrs,
     wait_for_block,
     wait_for_block_time,
@@ -37,7 +38,7 @@ UNDELEGATE = ContractFunction.from_abi(
     "function undelegate(address,string,uint256) external returns (int64)"
 )
 VALIDATOR = ContractFunction.from_abi(
-    "function validator(address) external returns ((string,string,bool,uint8,uint256,uint256,string,int64,int64,uint256,uint256))"  # noqa: E501
+    "function validator(address) external returns ((string,string,bool,uint8,uint256,uint256,(string,string,string,string,string),int64,int64,uint256,uint256))"  # noqa: E501
 )
 STAKING = to_checksum_address("0x0000000000000000000000000000000000000800")
 
@@ -59,7 +60,7 @@ def custom_mantra(request, tmp_path_factory):
 
 async def get_validators(w3):
     VALIDATORS = ContractFunction.from_abi(
-        "function validators(string,(bytes,uint64,uint64,bool,bool)) external returns ((string,string,bool,uint8,uint256,uint256,string,int64,int64,uint256,uint256)[],(bytes,uint64))"  # noqa: E501
+        "function validators(string,(bytes,uint64,uint64,bool,bool)) external returns ((string,string,bool,uint8,uint256,uint256,(string,string,string,string,string),int64,int64,uint256,uint256)[],(bytes,uint64))"  # noqa: E501
     )
     res, _ = await VALIDATORS(BondStatus.BONDED.value, [b"", 0, 10, False, False]).call(
         w3, to=STAKING
@@ -208,18 +209,7 @@ async def test_join_validator(mantra):
 
     res = cli0.transfer(cli0.address("community"), cli.address("validator"), fund)
     assert res["code"] == 0, res
-    # Modify the json-rpc addresses to avoid conflict
-    cluster.edit_app_cfg(
-        clustercli.home(node_index) / "config/app.toml",
-        clustercli.base_port(node_index),
-        {
-            "json-rpc": {
-                "enable": True,
-                "address": "127.0.0.1:{EVMRPC_PORT}",
-                "ws-address": "127.0.0.1:{EVMRPC_PORT_WS}",
-            }
-        },
-    )
+    edit_app_cfg(clustercli, node_index)
     clustercli.supervisor.startProcess(f"{chain_id}-node{node_index}")
     wait_for_block(cli, cli0.block_height() + 1)
     time.sleep(1)
