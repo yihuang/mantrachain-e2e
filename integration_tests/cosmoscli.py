@@ -699,9 +699,7 @@ class CosmosCLI:
 
     def tx_search(self, events: str):
         return json.loads(
-            self.raw(
-                "query", "txs", query=f'"{events}"', output="json", node=self.node_rpc
-            )
+            self.raw("q", "txs", query=f'"{events}"', output="json", node=self.node_rpc)
         )
 
     def tx_search_rpc(self, events: str):

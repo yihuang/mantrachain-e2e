@@ -162,7 +162,7 @@ class RevertTestContract(Contract):
         return receipt
 
 
-def wait_for_fn(name, fn, *, timeout=240, interval=1):
+def wait_for_fn(name, fn, *, timeout=120, interval=1):
     for i in range(int(timeout / interval)):
         result = fn()
         if result:
@@ -172,7 +172,7 @@ def wait_for_fn(name, fn, *, timeout=240, interval=1):
         raise TimeoutError(f"wait for {name} timeout")
 
 
-async def wait_for_fn_async(name, fn, *, timeout=240, interval=1):
+async def wait_for_fn_async(name, fn, *, timeout=120, interval=1):
     for i in range(int(timeout / interval)):
         result = await fn()
         if result:
@@ -192,7 +192,7 @@ def wait_for_block_time(cli, t):
         time.sleep(0.5)
 
 
-def w3_wait_for_block(w3, height, timeout=240):
+def w3_wait_for_block(w3, height, timeout=120):
     for _ in range(timeout * 2):
         try:
             current_height = w3.eth.block_number
@@ -207,7 +207,7 @@ def w3_wait_for_block(w3, height, timeout=240):
         raise TimeoutError(f"wait for block {height} timeout")
 
 
-async def w3_wait_for_block_async(w3, height, timeout=240):
+async def w3_wait_for_block_async(w3, height, timeout=120):
     for _ in range(timeout * 2):
         try:
             current_height = await w3.eth.block_number
@@ -226,7 +226,7 @@ def get_sync_info(s):
     return s.get("SyncInfo") or s.get("sync_info")
 
 
-def wait_for_new_blocks(cli, n, sleep=0.5, timeout=240):
+def wait_for_new_blocks(cli, n, sleep=0.5, timeout=120):
     cur_height = begin_height = int(get_sync_info(cli.status())["latest_block_height"])
     start_time = time.time()
     while cur_height - begin_height < n:
@@ -237,7 +237,7 @@ def wait_for_new_blocks(cli, n, sleep=0.5, timeout=240):
     return cur_height
 
 
-def wait_for_block(cli, height, timeout=240):
+def wait_for_block(cli, height, timeout=120):
     for i in range(timeout * 2):
         try:
             status = cli.status()
@@ -576,9 +576,21 @@ def ibc_denom_address(denom):
     return to_checksum_address("0x" + hash_bytes[-20:].hex())
 
 
+def retry_on_seq_mismatch(fn, *args, max_retries=3, **kwargs):
+    for attempt in range(max_retries):
+        rsp = fn(*args, **kwargs)
+        if rsp["code"] == 0:
+            return rsp
+        if rsp["code"] == 32 and "account sequence mismatch" in rsp["raw_log"]:
+            if attempt < max_retries - 1:
+                continue
+        return rsp
+    return rsp
+
+
 def assert_create_tokenfactory_denom(cli, subdenom, is_legacy=False, **kwargs):
     # check create tokenfactory denom
-    rsp = cli.create_tokenfactory_denom(subdenom, **kwargs)
+    rsp = retry_on_seq_mismatch(cli.create_tokenfactory_denom, subdenom, **kwargs)
     assert rsp["code"] == 0, rsp["raw_log"]
     event = find_log_event_attrs(
         rsp["events"], "create_denom", lambda attrs: "creator" in attrs
@@ -618,7 +630,7 @@ def assert_mint_tokenfactory_denom(cli, denom, amt, is_legacy=False, **kwargs):
     sender = kwargs.get("_from")
     balance = cli.balance(sender, denom)
     coin = f"{amt}{denom}"
-    rsp = cli.mint_tokenfactory_denom(coin, **kwargs)
+    rsp = retry_on_seq_mismatch(cli.mint_tokenfactory_denom, coin, **kwargs)
     assert rsp["code"] == 0, rsp["raw_log"]
     if not is_legacy:
         event = find_log_event_attrs(
