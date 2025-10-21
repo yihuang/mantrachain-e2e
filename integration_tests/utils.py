@@ -36,6 +36,7 @@ from eth_contract.utils import send_transaction as send_transaction_async
 from eth_contract.weth import WETH, WETH9_ARTIFACT
 from eth_utils import to_checksum_address
 from hexbytes import HexBytes
+from pystarport import cluster
 from web3 import AsyncWeb3
 from web3._utils.transactions import fill_nonce, fill_transaction_defaults
 
@@ -57,6 +58,7 @@ KEYS = {name: account.key for name, account in ACCOUNTS.items()}
 ADDRS = {name: account.address for name, account in ACCOUNTS.items()}
 
 DEFAULT_DENOM = os.getenv("EVM_DENOM", "uom")
+DEFAULT_EXTENDED_DENOM = os.getenv("EVM_EXTENDED_DENOM", "aom")
 CHAIN_ID = os.getenv("CHAIN_ID", "mantra-canary-net-1")
 EVM_CHAIN_ID = int(os.getenv("EVM_CHAIN_ID", 7888))
 # the default initial base fee used by integration tests
@@ -160,7 +162,7 @@ class RevertTestContract(Contract):
         return receipt
 
 
-def wait_for_fn(name, fn, *, timeout=240, interval=1):
+def wait_for_fn(name, fn, *, timeout=120, interval=1):
     for i in range(int(timeout / interval)):
         result = fn()
         if result:
@@ -170,7 +172,7 @@ def wait_for_fn(name, fn, *, timeout=240, interval=1):
         raise TimeoutError(f"wait for {name} timeout")
 
 
-async def wait_for_fn_async(name, fn, *, timeout=240, interval=1):
+async def wait_for_fn_async(name, fn, *, timeout=120, interval=1):
     for i in range(int(timeout / interval)):
         result = await fn()
         if result:
@@ -190,7 +192,7 @@ def wait_for_block_time(cli, t):
         time.sleep(0.5)
 
 
-def w3_wait_for_block(w3, height, timeout=240):
+def w3_wait_for_block(w3, height, timeout=120):
     for _ in range(timeout * 2):
         try:
             current_height = w3.eth.block_number
@@ -205,7 +207,7 @@ def w3_wait_for_block(w3, height, timeout=240):
         raise TimeoutError(f"wait for block {height} timeout")
 
 
-async def w3_wait_for_block_async(w3, height, timeout=240):
+async def w3_wait_for_block_async(w3, height, timeout=120):
     for _ in range(timeout * 2):
         try:
             current_height = await w3.eth.block_number
@@ -224,7 +226,7 @@ def get_sync_info(s):
     return s.get("SyncInfo") or s.get("sync_info")
 
 
-def wait_for_new_blocks(cli, n, sleep=0.5, timeout=240):
+def wait_for_new_blocks(cli, n, sleep=0.5, timeout=120):
     cur_height = begin_height = int(get_sync_info(cli.status())["latest_block_height"])
     start_time = time.time()
     while cur_height - begin_height < n:
@@ -235,7 +237,7 @@ def wait_for_new_blocks(cli, n, sleep=0.5, timeout=240):
     return cur_height
 
 
-def wait_for_block(cli, height, timeout=240):
+def wait_for_block(cli, height, timeout=120):
     for i in range(timeout * 2):
         try:
             status = cli.status()
@@ -574,9 +576,21 @@ def ibc_denom_address(denom):
     return to_checksum_address("0x" + hash_bytes[-20:].hex())
 
 
+def retry_on_seq_mismatch(fn, *args, max_retries=3, **kwargs):
+    for attempt in range(max_retries):
+        rsp = fn(*args, **kwargs)
+        if rsp["code"] == 0:
+            return rsp
+        if rsp["code"] == 32 and "account sequence mismatch" in rsp["raw_log"]:
+            if attempt < max_retries - 1:
+                continue
+        return rsp
+    return rsp
+
+
 def assert_create_tokenfactory_denom(cli, subdenom, is_legacy=False, **kwargs):
     # check create tokenfactory denom
-    rsp = cli.create_tokenfactory_denom(subdenom, **kwargs)
+    rsp = retry_on_seq_mismatch(cli.create_tokenfactory_denom, subdenom, **kwargs)
     assert rsp["code"] == 0, rsp["raw_log"]
     event = find_log_event_attrs(
         rsp["events"], "create_denom", lambda attrs: "creator" in attrs
@@ -616,7 +630,7 @@ def assert_mint_tokenfactory_denom(cli, denom, amt, is_legacy=False, **kwargs):
     sender = kwargs.get("_from")
     balance = cli.balance(sender, denom)
     coin = f"{amt}{denom}"
-    rsp = cli.mint_tokenfactory_denom(coin, **kwargs)
+    rsp = retry_on_seq_mismatch(cli.mint_tokenfactory_denom, coin, **kwargs)
     assert rsp["code"] == 0, rsp["raw_log"]
     if not is_legacy:
         event = find_log_event_attrs(
@@ -940,9 +954,9 @@ async def assert_create_erc20_denom(w3, signer):
         w3, signer, get_initcode(WETH9_ARTIFACT), salt=WETH_SALT
     )
     assert (await ERC20.fns.decimals().call(w3, to=WETH_ADDRESS)) == 18
-    total = await ERC20.fns.totalSupply().call(w3, to=WETH_ADDRESS)
-    signer1_balance_eth_bf = await ERC20.fns.balanceOf(signer).call(w3, to=WETH_ADDRESS)
-    assert total == signer1_balance_eth_bf == 0
+    total_bf = await ERC20.fns.totalSupply().call(w3, to=WETH_ADDRESS)
+    balance_bf = await ERC20.fns.balanceOf(signer).call(w3, to=WETH_ADDRESS)
+    assert total_bf == balance_bf
 
     weth = WETH(to=WETH_ADDRESS)
     erc20_denom = f"erc20:{WETH_ADDRESS}"
@@ -950,9 +964,9 @@ async def assert_create_erc20_denom(w3, signer):
     res = await weth.fns.deposit().transact(w3, signer, value=deposit_amt)
     assert res.status == 1
     total = await ERC20.fns.totalSupply().call(w3, to=WETH_ADDRESS)
-    signer1_balance_eth = await ERC20.fns.balanceOf(signer).call(w3, to=WETH_ADDRESS)
-    assert total == signer1_balance_eth == deposit_amt
-    signer1_balance_eth_bf = signer1_balance_eth
+    balance = await ERC20.fns.balanceOf(signer).call(w3, to=WETH_ADDRESS)
+    assert total == balance
+    assert (total - total_bf) == (balance - balance_bf) == deposit_amt
     return erc20_denom, total
 
 
@@ -1013,3 +1027,18 @@ async def assert_tf_flow(w3, receiver, signer1, signer2, tf_erc20_addr):
     receiver_balance = await ERC20.fns.balanceOf(receiver).call(w3, to=tf_erc20_addr)
     assert receiver_balance == receiver_balance_bf + approve_amt
     receiver_balance_bf = receiver_balance
+
+
+def edit_app_cfg(cli, i):
+    # Modify the json-rpc addresses to avoid conflict
+    cluster.edit_app_cfg(
+        cli.home(i) / "config/app.toml",
+        cli.base_port(i),
+        {
+            "json-rpc": {
+                "enable": True,
+                "address": "127.0.0.1:{EVMRPC_PORT}",
+                "ws-address": "127.0.0.1:{EVMRPC_PORT_WS}",
+            },
+        },
+    )

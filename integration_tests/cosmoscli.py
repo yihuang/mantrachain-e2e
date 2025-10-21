@@ -233,7 +233,7 @@ class CosmosCLI:
         if max_priority_price is not None:
             tx["body"]["extension_options"].append(
                 {
-                    "@type": "/cosmos.evm.types.v1.ExtensionOptionDynamicFeeTx",
+                    "@type": "/cosmos.evm.ante.v1.ExtensionOptionDynamicFeeTx",
                     "max_priority_price": str(max_priority_price),
                 }
             )
@@ -709,9 +709,7 @@ class CosmosCLI:
 
     def tx_search(self, events: str):
         return json.loads(
-            self.raw(
-                "query", "txs", query=f'"{events}"', output="json", node=self.node_rpc
-            )
+            self.raw("q", "txs", query=f'"{events}"', output="json", node=self.node_rpc)
         )
 
     def tx_search_rpc(self, events: str):
@@ -1003,6 +1001,32 @@ class CosmosCLI:
                 **(self.get_base_kwargs() | kwargs),
             )
         ).get("hash")
+
+    def ibc_transfer(
+        self,
+        to,
+        amount,
+        channel,  # src channel
+        generate_only=False,
+        **kwargs,
+    ):
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "ibc-transfer",
+                "transfer",
+                "transfer",
+                channel,
+                to,
+                amount,
+                "-y",
+                "--generate-only" if generate_only else None,
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
 
     def export(self, **kwargs):
         raw = self.raw("export", home=self.data_dir, **kwargs)

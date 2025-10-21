@@ -1,5 +1,7 @@
 import json
+import os
 import subprocess
+import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import NamedTuple
@@ -20,6 +22,35 @@ class IBCNetwork(NamedTuple):
     ibc1: Mantra
     ibc2: Mantra
     hermes: Hermes | None
+
+
+def add_key(hermes, chain, mnemonic_env, key_name):
+    with tempfile.NamedTemporaryFile("w", delete=False) as f:
+        print("mm-mnemonic_env", os.getenv(mnemonic_env))
+        f.write(os.getenv(mnemonic_env))
+        path = f.name
+        print("mm-path", path)
+    try:
+        subprocess.check_call(
+            [
+                "hermes",
+                "--config",
+                hermes.configpath,
+                "keys",
+                "add",
+                "--hd-path",
+                "m/44'/60'/0'/0/0",
+                "--chain",
+                chain,
+                "--mnemonic-file",
+                path,
+                "--key-name",
+                key_name,
+                "--overwrite",
+            ]
+        )
+    finally:
+        os.unlink(path)
 
 
 def call_hermes_cmd(hermes, incentivized, version):
@@ -50,6 +81,8 @@ def call_hermes_cmd(hermes, incentivized, version):
             else []
         )
     )
+    add_key(hermes, CHAIN_ID, "SIGNER1_MNEMONIC", "signer1")
+    add_key(hermes, "mantra-canary-net-2", "SIGNER2_MNEMONIC", "signer2")
 
 
 def prepare_network(tmp_path, name, chain):
@@ -78,7 +111,14 @@ def prepare_network(tmp_path, name, chain):
 
 
 def hermes_transfer(
-    ibc, src_chain, dst_chain, src_amount, dst_addr, denom=DEFAULT_DENOM, memo=None
+    ibc,
+    src_chain,
+    src_key_name,
+    src_amount,
+    dst_chain,
+    dst_addr,
+    denom=DEFAULT_DENOM,
+    memo=None,
 ):
     port = "transfer"
     channel = "channel-0"
@@ -92,7 +132,7 @@ def hermes_transfer(
         f"--dst-chain {dst_chain} --src-chain {src_chain} --src-port {port} "
         f"--src-channel {channel} --amount {src_amount} "
         f"--timeout-height-offset 1000 --number-msgs 1 "
-        f"--denom {denom} --receiver {dst_addr} --key-name relayer"
+        f"--denom {denom} --receiver {dst_addr} --key-name {src_key_name}"
     )
     if memo:
         cmd += f" --memo '{memo}'"

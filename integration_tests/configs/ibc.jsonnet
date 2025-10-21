@@ -41,17 +41,17 @@ local rly = {
     batch_delay: '5000ms',
   },
   extension_options: [{
-    type: 'cosmos_evm_dynamic_fee',
+    type: 'cosmos_evm_dynamic_fee_v1',
     value: '10000000000000000',
   }],
 };
 
 config {
   'mantra-canary-net-1'+: common {
-    key_name: 'signer1',
+    key_name: 'signer2',
   },
   'mantra-canary-net-2'+: basic + common {
-    key_name: 'signer2',
+    key_name: 'signer1',
     validators: [validator {
       base_port: 26800 + i * 10,
     } for i in std.range(0, std.length(super.validators) - 1) for validator in [super.validators[i]]],
