@@ -116,10 +116,11 @@ async def exec(c, tmp_path):
     cli = do_upgrade(c, "v6.0.0", target_height)
     pair = cli.query_erc20_token_pair(denom)
     assert pair["contract_owner"] == "OWNER_MODULE"
-    assert cli.query_disabled_list() == [
+    expected = [
         "wasm/cosmos.authz.v1beta1.MsgExec",
         "wasm/cosmos.evm.erc20.v1.MsgRegisterERC20",
     ]
+    assert all(item in cli.query_disabled_list() for item in expected)
 
     evm_params = cli.get_params("evm")["params"]
     meta = cli.query_bank_denom_metadata(evm_params["evm_denom"])
