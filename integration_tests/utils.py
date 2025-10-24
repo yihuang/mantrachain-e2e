@@ -543,10 +543,10 @@ def find_fee(rsp):
     return int("".join(takewhile(lambda s: s.isdigit() or s == ".", res["fee"])))
 
 
-def assert_transfer(cli, addr_a, addr_b, amt=1, denom=DEFAULT_DENOM, gas_prices=None):
+def assert_transfer(cli, addr_a, addr_b, amt=1, denom=DEFAULT_DENOM, **kwargs):
     balance_a = cli.balance(addr_a, denom=denom)
     balance_b = cli.balance(addr_b, denom=denom)
-    rsp = cli.transfer(addr_a, addr_b, f"{amt}{denom}", gas_prices=gas_prices)
+    rsp = cli.transfer(addr_a, addr_b, f"{amt}{denom}", **kwargs)
     assert rsp["code"] == 0, rsp["raw_log"]
     fee = find_fee(rsp)
     assert cli.balance(addr_a, denom=denom) == balance_a - amt - fee
