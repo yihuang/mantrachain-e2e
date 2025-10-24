@@ -10,8 +10,6 @@ from .upgrade_utils import (
     setup_mantra_upgrade,
 )
 from .utils import (
-    DEFAULT_DENOM,
-    DEFAULT_EXTENDED_DENOM,
     Greeter,
     assert_create_tokenfactory_denom,
     assert_mint_tokenfactory_denom,
@@ -49,7 +47,10 @@ async def exec(c, tmp_path):
 
     addr_a = cli.address(community)
     subdenom = f"admin{time.time()}"
-    gas_prices = f"1{DEFAULT_DENOM}"
+    LEGACY_DENOM = "uom"
+    LEGACY_EXTENDED_DENOM = "aom"
+
+    gas_prices = f"1{LEGACY_DENOM}"
 
     denom = assert_create_tokenfactory_denom(
         cli, subdenom, is_legacy=True, _from=addr_a, gas_prices=gas_prices
@@ -59,12 +60,14 @@ async def exec(c, tmp_path):
     )
 
     target_height = cli.block_height() + 15
-    cli = do_upgrade(c, "v5.0", target_height)
+    cli = do_upgrade(c, "v5.0", target_height, denom=LEGACY_DENOM)
 
     # check set contract tx works
     acc_c = derive_new_account(101)
     addr_c = eth_to_bech32(acc_c.address)
-    assert_transfer(cli, addr_a, addr_c, amt=10**6)
+    assert_transfer(
+        cli, addr_a, addr_c, amt=10**6, denom=LEGACY_DENOM, gas_prices=gas_prices
+    )
     greeter = Greeter("Greeter", acc_c.key)
     greeter.deploy(c.w3)
     assert greeter.contract.caller.greet() == "Hello"
@@ -76,12 +79,26 @@ async def exec(c, tmp_path):
     transfer_amt = 1000
     gas = 300000
 
-    assert_transfer(cli, addr_a, addr_b, amt=tf_amt)
+    assert_transfer(
+        cli, addr_a, addr_b, amt=tf_amt, denom=LEGACY_DENOM, gas_prices=gas_prices
+    )
     assert_mint_tokenfactory_denom(
-        cli, denom, tf_amt, is_legacy=True, _from=community, gas=gas
+        cli,
+        denom,
+        tf_amt,
+        is_legacy=True,
+        _from=community,
+        gas=gas,
+        gas_prices=gas_prices,
     )
     assert_transfer_tokenfactory_denom(
-        cli, denom, addr_b, transfer_amt, _from=community, gas=gas
+        cli,
+        denom,
+        addr_b,
+        transfer_amt,
+        _from=community,
+        gas=gas,
+        gas_prices=gas_prices,
     )
 
     w3 = c.async_w3
@@ -113,7 +130,7 @@ async def exec(c, tmp_path):
         "0x0000000000000000000000000000000000000805",
     ]
     target_height = cli.block_height() + 15
-    cli = do_upgrade(c, "v6.0.0", target_height)
+    cli = do_upgrade(c, "v6.0.0", target_height, denom=LEGACY_DENOM)
     pair = cli.query_erc20_token_pair(denom)
     assert pair["contract_owner"] == "OWNER_MODULE"
     expected = [
@@ -127,7 +144,7 @@ async def exec(c, tmp_path):
     if meta["denom_units"][1]["exponent"] == 6:
         assert (
             evm_params["extended_denom_options"].get("extended_denom")
-            == DEFAULT_EXTENDED_DENOM
+            == LEGACY_EXTENDED_DENOM
         )
 
     await ERC20.fns.transfer(receiver, transfer_amt2).transact(
@@ -141,7 +158,7 @@ async def exec(c, tmp_path):
     assert evm_params["active_static_precompiles"] == active_precompiles
 
     target_height = cli.block_height() + 15
-    cli = do_upgrade(c, "v7.0.0-rc0", target_height)
+    cli = do_upgrade(c, "v7.0.0-rc0", target_height, denom=LEGACY_DENOM)
     await ERC20.fns.transfer(receiver, transfer_amt2).transact(
         w3, sender, to=tf_erc20_addr, gasPrice=(await w3.eth.gas_price)
     )

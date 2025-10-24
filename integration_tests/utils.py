@@ -65,7 +65,6 @@ EVM_CHAIN_ID = int(os.getenv("EVM_CHAIN_ID", 7888))
 DEFAULT_GAS_AMT = float(os.getenv("DEFAULT_GAS_AMT", 10000000000))
 DEFAULT_GAS_PRICE = f"{DEFAULT_GAS_AMT}{DEFAULT_DENOM}"
 DEFAULT_GAS = 200000
-DEFAULT_FEE = int(DEFAULT_GAS_AMT * DEFAULT_GAS)
 WEI_PER_ETH = 10**18  # 10^18 wei == 1 ether
 WEI_PER_DENOM = int(os.getenv("WEI_PER_DENOM", 1))  # 1 wei == 1 amantra
 ADDRESS_PREFIX = os.getenv("ADDRESS_PREFIX", "mantra")
@@ -544,14 +543,14 @@ def find_fee(rsp):
     return int("".join(takewhile(lambda s: s.isdigit() or s == ".", res["fee"])))
 
 
-def assert_transfer(cli, addr_a, addr_b, amt=1):
-    balance_a = cli.balance(addr_a)
-    balance_b = cli.balance(addr_b)
-    rsp = cli.transfer(addr_a, addr_b, f"{amt}{DEFAULT_DENOM}")
+def assert_transfer(cli, addr_a, addr_b, amt=1, denom=DEFAULT_DENOM, gas_prices=None):
+    balance_a = cli.balance(addr_a, denom=denom)
+    balance_b = cli.balance(addr_b, denom=denom)
+    rsp = cli.transfer(addr_a, addr_b, f"{amt}{denom}", gas_prices=gas_prices)
     assert rsp["code"] == 0, rsp["raw_log"]
     fee = find_fee(rsp)
-    assert cli.balance(addr_a) == balance_a - amt - fee
-    assert cli.balance(addr_b) == balance_b + amt
+    assert cli.balance(addr_a, denom=denom) == balance_a - amt - fee
+    assert cli.balance(addr_b, denom=denom) == balance_b + amt
 
 
 def denom_to_erc20_address(denom):
@@ -649,7 +648,7 @@ def assert_transfer_tokenfactory_denom(cli, denom, receiver, amt, **kwargs):
     # check transfer tokenfactory denom
     sender = kwargs.get("_from")
     balance = cli.balance(sender, denom)
-    rsp = cli.transfer(sender, receiver, f"{amt}{denom}")
+    rsp = cli.transfer(sender, receiver, f"{amt}{denom}", **kwargs)
     assert rsp["code"] == 0, rsp["raw_log"]
     current = cli.balance(sender, denom)
     assert current == balance - amt
