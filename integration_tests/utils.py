@@ -57,17 +57,17 @@ ACCOUNTS = {
 KEYS = {name: account.key for name, account in ACCOUNTS.items()}
 ADDRS = {name: account.address for name, account in ACCOUNTS.items()}
 
-DEFAULT_DENOM = os.getenv("EVM_DENOM", "uom")
-DEFAULT_EXTENDED_DENOM = os.getenv("EVM_EXTENDED_DENOM", "aom")
+DEFAULT_DENOM = os.getenv("EVM_DENOM", "amantra")
+DEFAULT_EXTENDED_DENOM = os.getenv("EVM_EXTENDED_DENOM", "amantra")
 CHAIN_ID = os.getenv("CHAIN_ID", "mantra-canary-net-1")
 EVM_CHAIN_ID = int(os.getenv("EVM_CHAIN_ID", 7888))
 # the default initial base fee used by integration tests
-DEFAULT_GAS_AMT = float(os.getenv("DEFAULT_GAS_AMT", 0.01))
+DEFAULT_GAS_AMT = float(os.getenv("DEFAULT_GAS_AMT", 10000000000))
 DEFAULT_GAS_PRICE = f"{DEFAULT_GAS_AMT}{DEFAULT_DENOM}"
 DEFAULT_GAS = 200000
 DEFAULT_FEE = int(DEFAULT_GAS_AMT * DEFAULT_GAS)
 WEI_PER_ETH = 10**18  # 10^18 wei == 1 ether
-WEI_PER_DENOM = int(os.getenv("WEI_PER_DENOM", 10**12))  # 10^12 wei == 1 uom
+WEI_PER_DENOM = int(os.getenv("WEI_PER_DENOM", 1))  # 1 wei == 1 amantra
 ADDRESS_PREFIX = os.getenv("ADDRESS_PREFIX", "mantra")
 CMD = os.getenv("CMD", "mantrachaind")
 
@@ -520,8 +520,7 @@ def get_balance(cli, name):
         if "key not found" not in str(e):
             raise
         addr = name
-    uom = cli.balance(addr)
-    return uom
+    return cli.balance(addr)
 
 
 def assert_balance(cli, w3, name, evm=False):
@@ -531,13 +530,13 @@ def assert_balance(cli, w3, name, evm=False):
         if "key not found" not in str(e):
             raise
         addr = name
-    uom = get_balance(cli, name)
+    balance = get_balance(cli, name)
     wei = w3.eth.get_balance(bech32_to_eth(addr))
-    assert uom == wei // WEI_PER_DENOM
+    assert balance == wei // WEI_PER_DENOM
     print(
         f"wei: {wei}, ether: {wei // WEI_PER_ETH}.",
     )
-    return wei if evm else uom
+    return wei if evm else balance
 
 
 def find_fee(rsp):
