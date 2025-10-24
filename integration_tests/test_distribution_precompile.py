@@ -88,8 +88,9 @@ async def test_delegation_rewards_flow(mantra, connect_mantra, tmp_path):
     assert res.status == 1
 
     delegate_amt = 4e6
+    gas0 = 250_000
     coin = f"{delegate_amt}{DEFAULT_DENOM}"
-    rsp = cli.delegate_amount(val, coin, _from=signer1)
+    rsp = cli.delegate_amount(val, coin, _from=signer1, gas=gas0)
     assert rsp["code"] == 0, rsp["raw_log"]
 
     rewards_af = await rewards(w3, validator, val)
@@ -104,7 +105,7 @@ async def test_delegation_rewards_flow(mantra, connect_mantra, tmp_path):
     balance_af = await w3.eth.get_balance(signer2_eth)
     assert balance_af >= balance_bf, "balance should increase"
 
-    rsp = cli.unbond_amount(val, coin, _from=signer1, gas=250_000)
+    rsp = cli.unbond_amount(val, coin, _from=signer1, gas=gas0)
     assert rsp["code"] == 0, rsp["raw_log"]
 
 

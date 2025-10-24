@@ -1,7 +1,9 @@
 from datetime import timedelta
 
 import pytest
+import requests
 from dateutil.parser import isoparse
+from pystarport.utils import parse_amount
 
 from .utils import (
     DEFAULT_DENOM,
@@ -82,8 +84,9 @@ def test_delegation_rewards_flow(mantra, connect_mantra, tmp_path):
     assert rsp["code"] == 0, rsp["raw_log"]
 
     delegate_amt = 4e6
+    gas0 = 250_000
     coin = f"{delegate_amt}{DEFAULT_DENOM}"
-    rsp = cli.delegate_amount(val, coin, _from=signer1)
+    rsp = cli.delegate_amount(val, coin, _from=signer1, gas=gas0)
     assert rsp["code"] == 0, rsp["raw_log"]
 
     rewards_af = cli.distribution_rewards(validator)
@@ -96,7 +99,7 @@ def test_delegation_rewards_flow(mantra, connect_mantra, tmp_path):
     balance_af = cli.balance(signer2)
     assert balance_af >= balance_bf, "balance should increase"
 
-    rsp = cli.unbond_amount(val, coin, _from=signer1, gas=250_000)
+    rsp = cli.unbond_amount(val, coin, _from=signer1, gas=gas0)
     assert rsp["code"] == 0, rsp["raw_log"]
     data = find_log_event_attrs(
         rsp["events"], "unbond", lambda attrs: "completion_time" in attrs
@@ -140,5 +143,19 @@ def test_validator_rewards_pool_funding(mantra, connect_mantra, tmp_path):
     rsp = cli.fund_validator_rewards_pool(
         val, f"{fund_amount}{DEFAULT_DENOM}", from_=signer1
     )
-    assert rsp["code"] != 0
-    assert "tx type not allowed" in rsp["raw_log"]
+    disabled = (
+        "/cosmos.distribution.v1beta1.MsgDepositValidatorRewardsPool"
+        in cli.query_disabled_list()
+    )
+    if disabled:
+        assert rsp["code"] != 0, rsp["raw_log"]
+        assert "tx type not allowed" in rsp["raw_log"]
+    else:
+        assert rsp["code"] == 0, rsp["raw_log"]
+        blk = rsp["height"]
+        rsp = requests.get(f"{cli.node_rpc_http}/block_results?height={blk}").json()
+        rsp = next((tx for tx in rsp["result"]["txs_results"] if tx["code"] == 0), None)
+        data = find_log_event_attrs(
+            rsp["events"], "rewards", lambda attrs: "amount" in attrs
+        )
+        assert parse_amount(data["amount"]) == fund_amount
