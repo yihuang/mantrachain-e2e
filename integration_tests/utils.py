@@ -778,9 +778,8 @@ def build_batch_tx(w3, cli, txs, key=KEYS["community"]):
     }, tx_hashes
 
 
-def approve_proposal(n, events, event_query_tx=False):
+def approve_proposal(n, events, event_query_tx=True, **kwargs):
     cli = n.cosmos_cli()
-
     # get proposal_id
     ev = find_log_event_attrs(
         events, "submit_proposal", lambda attrs: "proposal_id" in attrs
@@ -791,8 +790,8 @@ def approve_proposal(n, events, event_query_tx=False):
             "validator",
             proposal_id,
             "yes",
-            event_query_tx,
-            gas_prices=f"{80 * DEFAULT_GAS_AMT}{DEFAULT_DENOM}",
+            event_query_tx=event_query_tx,
+            **kwargs,
         )
         assert rsp["code"] == 0, rsp["raw_log"]
     wait_for_new_blocks(cli, 1)
@@ -808,7 +807,7 @@ def approve_proposal(n, events, event_query_tx=False):
     assert proposal["status"] == "PROPOSAL_STATUS_PASSED", proposal
 
 
-def submit_gov_proposal(mantra, tmp_path, messages, **kwargs):
+def submit_gov_proposal(mantra, tmp_path, messages, event_query_tx=True, **kwargs):
     proposal = tmp_path / "proposal.json"
     proposal_src = {
         "title": "title",
@@ -819,7 +818,7 @@ def submit_gov_proposal(mantra, tmp_path, messages, **kwargs):
     proposal.write_text(json.dumps(proposal_src))
     rsp = mantra.cosmos_cli().submit_gov_proposal(proposal, from_="community", **kwargs)
     assert rsp["code"] == 0, rsp["raw_log"]
-    approve_proposal(mantra, rsp["events"])
+    approve_proposal(mantra, rsp["events"], event_query_tx=event_query_tx)
     print("check params have been updated now")
     return rsp
 

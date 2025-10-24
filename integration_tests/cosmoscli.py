@@ -521,7 +521,6 @@ class CosmosCLI:
         return res.get("tally") or res
 
     def gov_vote(self, voter, proposal_id, option, event_query_tx=True, **kwargs):
-        default_kwargs = self.get_kwargs()
         rsp = json.loads(
             self.raw(
                 "tx",
@@ -531,7 +530,7 @@ class CosmosCLI:
                 option,
                 "-y",
                 from_=voter,
-                **(default_kwargs | kwargs),
+                **(self.get_kwargs_with_gas() | kwargs),
             )
         )
         if rsp.get("code") == 0 and event_query_tx:

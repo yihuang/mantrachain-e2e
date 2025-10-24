@@ -113,6 +113,7 @@ def test_mempool_nonce(mantra_mempool, tmp_path):
                 **p,
             }
         ],
+        event_query_tx=False,
     )
     p = cli.get_params("consensus")["params"]
     assert int(p["block"]["max_bytes"]) == max_bytes
