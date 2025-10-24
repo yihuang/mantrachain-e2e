@@ -23,10 +23,17 @@ from .utils import (
 )
 
 
-def do_upgrade(c, plan_name, target, gas_prices=f"0.8{DEFAULT_DENOM}"):
+def do_upgrade(
+    c,
+    plan_name,
+    target,
+    gas_prices=f"0.8{DEFAULT_DENOM}",
+):
     print(f"upgrade {plan_name} height: {target}")
     cli = c.cosmos_cli()
     base_port = c.base_port(0)
+    rsp = {}
+
     rsp = cli.software_upgrade(
         "community",
         {

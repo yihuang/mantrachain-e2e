@@ -106,6 +106,8 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
             evm_denom: chain.evm_denom,
             active_static_precompiles: [
               '0x0000000000000000000000000000000000000800',
+              '0x0000000000000000000000000000000000000801',
+              '0x0000000000000000000000000000000000000805',
               '0x0000000000000000000000000000000000000807',
             ],
           },
@@ -144,6 +146,11 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
               },
             ],
           },
+        },
+        circuit: {
+          disabled_type_urls: [
+            "/cosmos.distribution.v1beta1.MsgDepositValidatorRewardsPool",
+          ],
         },
         crisis: {
           constant_fee: {

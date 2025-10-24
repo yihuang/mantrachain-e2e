@@ -54,7 +54,10 @@ class CosmosCLI:
 
     @property
     def node_rpc_http(self):
-        return "http" + self.node_rpc.removeprefix("tcp")
+        url = self.node_rpc.removeprefix("tcp")
+        if not url.startswith(("http://", "https://")):
+            url = "http" + url
+        return url
 
     @classmethod
     def init(cls, moniker, data_dir, node_rpc, cmd, chain_id):
@@ -428,17 +431,22 @@ class CosmosCLI:
         return rsp
 
     def delegation(self, del_addr, val_addr, **kwargs):
-        res = json.loads(
-            self.raw(
-                "q",
-                "staking",
-                "delegation",
-                del_addr,
-                val_addr,
-                **(self.get_base_kwargs() | kwargs),
+        try:
+            res = json.loads(
+                self.raw(
+                    "q",
+                    "staking",
+                    "delegation",
+                    del_addr,
+                    val_addr,
+                    **(self.get_base_kwargs() | kwargs),
+                )
             )
-        )
-        return res.get("delegation_response") or res
+            return res.get("delegation_response") or res
+        except AssertionError as e:
+            if "delegation with delegator" in str(e) and "not found" in str(e):
+                return {"balance": {"amount": 0}}
+            raise
 
     def delegations(self, del_addr, **kwargs):
         res = json.loads(
@@ -851,14 +859,14 @@ class CosmosCLI:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
 
-    def set_withdraw_addr(self, bech32_addr, **kwargs):
+    def fund_community_pool(self, amt, **kwargs):
         rsp = json.loads(
             self.raw(
                 "tx",
                 "distribution",
-                "set-withdraw-addr",
+                "fund-community-pool",
                 "-y",
-                bech32_addr,
+                amt,
                 **(self.get_kwargs_with_gas() | kwargs),
             )
         )
@@ -882,6 +890,21 @@ class CosmosCLI:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
 
+    def set_withdraw_addr(self, addr, **kwargs):
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "distribution",
+                "set-withdraw-addr",
+                "-y",
+                addr,
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
     def withdraw_all_rewards(self, generate_only=False, **kwargs):
         rsp = json.loads(
             self.raw(
@@ -897,7 +920,39 @@ class CosmosCLI:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
 
-    def distribution_reward(self, delegator_addr, **kwargs):
+    def withdraw_rewards(self, val_addr, generate_only=False, **kwargs):
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "distribution",
+                "withdraw-rewards",
+                val_addr,
+                "-y",
+                "--generate-only" if generate_only else None,
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def withdraw_validator_commission(self, val_addr, generate_only=False, **kwargs):
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "distribution",
+                "withdraw-validator-commission",
+                val_addr,
+                "-y",
+                "--generate-only" if generate_only else None,
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def distribution_rewards(self, delegator_addr, **kwargs):
         res = json.loads(
             self.raw(
                 "q",
@@ -911,6 +966,39 @@ class CosmosCLI:
         if not total or total[0] is None:
             return 0
         return parse_amount(total[0])
+
+    def distribution_commission(self, addr, **kwargs):
+        res = (
+            json.loads(
+                self.raw(
+                    "q",
+                    "distribution",
+                    "commission",
+                    addr,
+                    **(self.get_base_kwargs() | kwargs),
+                )
+            )
+            .get("commission")
+            .get("commission")
+        )
+        if not res or not res[0]:
+            return 0
+        return parse_amount(res[0])
+
+    def distribution_community_pool(self, **kwargs):
+        res = json.loads(
+            self.raw(
+                "q",
+                "distribution",
+                "community-pool",
+                output="json",
+                node=self.node_rpc,
+                **kwargs,
+            )
+        ).get("pool")
+        if not res or not res[0]:
+            return 0
+        return parse_amount(res[0])
 
     def query_disabled_list(self, **kwargs):
         return json.loads(

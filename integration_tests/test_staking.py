@@ -13,6 +13,7 @@ from .utils import (
     DEFAULT_GAS_PRICE,
     WEI_PER_DENOM,
     BondStatus,
+    duration,
     edit_app_cfg,
     find_fee,
     find_log_event_attrs,
@@ -36,8 +37,16 @@ def custom_mantra(request, tmp_path_factory):
     )
 
 
-def test_staking_unbond(mantra):
-    cli = mantra.cosmos_cli()
+@pytest.mark.connect
+def test_connect_staking_unbond(connect_mantra, tmp_path):
+    test_staking_unbond(None, connect_mantra, tmp_path)
+
+
+def test_staking_unbond(mantra, connect_mantra, tmp_path):
+    cli = connect_mantra.cosmos_cli(tmp_path)
+    unbond_duration = duration(cli.get_params("staking")["params"]["unbonding_time"])
+    if unbond_duration > 60:
+        pytest.skip(f"unbond_duration is {unbond_duration} too long for test")
     name = "signer1"
     signer1 = cli.address(name)
     validators = cli.validators()
@@ -46,9 +55,12 @@ def test_staking_unbond(mantra):
     bonded_bf = cli.staking_pool()
     amounts = [3, 4]
     fee = 0
+    gas = 250_000
 
     for i, amt in enumerate(amounts):
-        rsp = cli.delegate_amount(val_ops[i], f"{amt}{DEFAULT_DENOM}", _from=name)
+        rsp = cli.delegate_amount(
+            val_ops[i], f"{amt}{DEFAULT_DENOM}", _from=name, gas=gas
+        )
         assert rsp["code"] == 0, rsp["raw_log"]
         fee += find_fee(rsp)
 
@@ -58,9 +70,9 @@ def test_staking_unbond(mantra):
     unbonded = cli.staking_pool(bonded=False)
     unbonded_amt = 2
     rsp = cli.unbond_amount(
-        val_ops[1], f"{unbonded_amt}{DEFAULT_DENOM}", _from=name, gas=220_000
+        val_ops[1], f"{unbonded_amt}{DEFAULT_DENOM}", _from=name, gas=gas
     )
-    assert rsp["code"] == 0, rsp
+    assert rsp["code"] == 0, rsp["raw_log"]
     fee += find_fee(rsp)
     assert cli.staking_pool(bonded=False) == unbonded + unbonded_amt
     data = find_log_event_attrs(
@@ -70,17 +82,25 @@ def test_staking_unbond(mantra):
     assert cli.balance(signer1) == balance_bf - (sum(amounts) - unbonded_amt) - fee
 
 
-def test_staking_redelegate(mantra):
-    cli = mantra.cosmos_cli()
+@pytest.mark.connect
+def test_connect_staking_redelegate(connect_mantra, tmp_path):
+    test_staking_redelegate(None, connect_mantra, tmp_path)
+
+
+def test_staking_redelegate(mantra, connect_mantra, tmp_path):
+    cli = connect_mantra.cosmos_cli(tmp_path)
     name = "signer1"
     signer1 = cli.address(name)
     validators = cli.validators()
     val_ops = [v["operator_address"] for v in validators[:2]]
     amounts = [3, 4]
     fee = 0
+    gas = 400_000
 
     for i, amt in enumerate(amounts):
-        rsp = cli.delegate_amount(val_ops[i], f"{amt}{DEFAULT_DENOM}", _from=name)
+        rsp = cli.delegate_amount(
+            val_ops[i], f"{amt}{DEFAULT_DENOM}", _from=name, gas=gas
+        )
         assert rsp["code"] == 0, rsp["raw_log"]
         fee += find_fee(rsp)
 
@@ -91,7 +111,7 @@ def test_staking_redelegate(mantra):
         val_ops[1],
         f"{redelegate_amt}{DEFAULT_DENOM}",
         _from=name,
-        gas=320_000,
+        gas=gas,
     )
     assert rsp["code"] == 0, rsp["raw_log"]
     balance = cli.delegation(signer1, val_ops[0])["balance"]["amount"]
