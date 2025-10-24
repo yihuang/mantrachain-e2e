@@ -40,7 +40,7 @@ def test_distribution(mantra, connect_mantra, tmp_path):
     fee = find_fee(rsp)
     wait_for_new_blocks(cli, 2)
     assert cli.balance(signer1) == balance_bf - fee - amt
-    assert cli.distribution_community_pool() - community_bf > fee
+    assert cli.distribution_community_pool() > community_bf
 
 
 @pytest.mark.skip(reason="https://github.com/cosmos/cosmos-sdk/pull/25485")

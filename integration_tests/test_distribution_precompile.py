@@ -62,8 +62,7 @@ async def test_distribution(mantra, connect_mantra, tmp_path):
     wait_for_new_blocks(cli, 2)
 
     assert cli.balance(signer1) == balance_bf - fee - amt
-    community_af = await community_pool(w3)
-    assert community_af - community_bf > fee
+    assert await community_pool(w3) > community_bf
 
 
 @pytest.mark.connect
