@@ -1,3 +1,4 @@
+import json
 import time
 
 import pytest
@@ -181,6 +182,10 @@ async def exec(c, tmp_path):
     expected_coin = {"denom": DEFAULT_DENOM, "amount": f"{periodic_amt * scale_factor}"}
     assert acct["value"]["base_vesting_account"]["original_vesting"] == [expected_coin]
     assert acct["value"]["vesting_periods"][0]["amount"] == [expected_coin]
+
+    c.supervisorctl("stop", "all")
+    distribution = cli.export(modules_to_export="distribution")["app_state"]["distribution"]
+    assert "uom" not in json.dumps(distribution)
 
 
 async def test_cosmovisor_upgrade(custom_mantra: Mantra, tmp_path):
