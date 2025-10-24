@@ -10,6 +10,7 @@ from .upgrade_utils import (
     setup_mantra_upgrade,
 )
 from .utils import (
+    DEFAULT_DENOM,
     Greeter,
     assert_create_tokenfactory_denom,
     assert_mint_tokenfactory_denom,
@@ -17,6 +18,7 @@ from .utils import (
     assert_transfer,
     assert_transfer_tokenfactory_denom,
     bech32_to_eth,
+    create_periodic_vesting_acct,
     denom_to_erc20_address,
     derive_new_account,
     eth_to_bech32,
@@ -157,6 +159,12 @@ async def exec(c, tmp_path):
     )
     assert evm_params["active_static_precompiles"] == active_precompiles
 
+    periodic_amt = 1
+    coin = f"{periodic_amt}{LEGACY_DENOM}"
+    periodic_addr = create_periodic_vesting_acct(
+        cli, tmp_path, coin, from_=community, gas_prices=gas_prices
+    )
+
     target_height = cli.block_height() + 15
     cli = do_upgrade(c, "v7.0.0-rc0", target_height, denom=LEGACY_DENOM)
     await ERC20.fns.transfer(receiver, transfer_amt2).transact(
@@ -167,6 +175,12 @@ async def exec(c, tmp_path):
         == await ERC20.fns.balanceOf(sender).call(w3, to=tf_erc20_addr)
         == transfer_amt - transfer_amt2 * 3
     )
+    acct = cli.account(periodic_addr)["account"]
+    assert acct["type"] == "/cosmos.vesting.v1beta1.PeriodicVestingAccount"
+    scale_factor = 4_000_000_000_000
+    expected_coin = {"denom": DEFAULT_DENOM, "amount": f"{periodic_amt * scale_factor}"}
+    assert acct["value"]["base_vesting_account"]["original_vesting"] == [expected_coin]
+    assert acct["value"]["vesting_periods"][0]["amount"] == [expected_coin]
 
 
 async def test_cosmovisor_upgrade(custom_mantra: Mantra, tmp_path):
