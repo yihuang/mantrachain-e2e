@@ -823,6 +823,21 @@ def submit_gov_proposal(mantra, tmp_path, messages, event_query_tx=True, **kwarg
     return rsp
 
 
+def create_periodic_vesting_acct(cli, tmp_path, coin, **kwargs):
+    start_time = int(time.time())
+    periods = tmp_path / "periods.json"
+    src = {
+        "start_time": start_time,
+        "periods": [{"coins": coin, "length_seconds": 2592000}],
+    }
+    periods.write_text(json.dumps(src))
+    name = f"periodic_vesting{start_time}"
+    addr = cli.create_account(name)["address"]
+    rsp = cli.create_periodic_vesting_account(addr, periods, **kwargs)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    return addr
+
+
 def derive_new_account(n=1, mnemonic="SIGNER1_MNEMONIC"):
     # derive a new address
     account_path = f"m/44'/60'/0'/0/{n}"
