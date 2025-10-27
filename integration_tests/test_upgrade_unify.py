@@ -184,7 +184,9 @@ async def exec(c, tmp_path):
     assert acct["value"]["vesting_periods"][0]["amount"] == [expected_coin]
 
     c.supervisorctl("stop", "all")
-    distribution = cli.export(modules_to_export="distribution")["app_state"]["distribution"]
+    distribution = cli.export(modules_to_export="distribution")["app_state"][
+        "distribution"
+    ]
     assert "uom" not in json.dumps(distribution)
 
 

@@ -58,18 +58,6 @@ def test_simple(mantra, connect_mantra, tmp_path, check_reserve=True):
         ]
 
 
-def test_vesting(mantra, tmp_path):
-    cli = mantra.cosmos_cli()
-    start_time = int(time.time())
-    end_time = start_time + 3000
-    name = f"vesting{start_time}"
-    addr = cli.create_account(name)["address"]
-    coin = f"1{DEFAULT_DENOM}"
-    rsp = cli.create_periodic_vesting_acct(addr, coin, end_time, from_="community")
-    assert rsp["code"] == 0, rsp["raw_log"]
-    create_periodic_vesting_acct(cli, tmp_path, coin, from_="community")
-
-
 @pytest.mark.connect
 def test_connect_vesting(connect_mantra, tmp_path):
     test_vesting(None, connect_mantra, tmp_path)
