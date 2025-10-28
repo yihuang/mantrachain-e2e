@@ -7,6 +7,8 @@ from pystarport.utils import wait_for_new_blocks
 
 from .network import Mantra
 from .upgrade_utils import (
+    LEGACY_DENOM,
+    LEGACY_EXTENDED_DENOM,
     cleanup_upgrades_folder,
     do_upgrade,
     setup_mantra_upgrade,
@@ -50,9 +52,6 @@ async def exec(c, tmp_path):
 
     addr_a = cli.address(community)
     subdenom = f"admin{time.time()}"
-    LEGACY_DENOM = "uom"
-    LEGACY_EXTENDED_DENOM = "aom"
-
     gas_prices = f"1{LEGACY_DENOM}"
 
     denom = assert_create_tokenfactory_denom(
@@ -178,21 +177,9 @@ async def exec(c, tmp_path):
         == await ERC20.fns.balanceOf(sender).call(w3, to=tf_erc20_addr)
         == transfer_amt - transfer_amt2 * 3
     )
-    acct = cli.account(periodic_addr)["account"]
-    assert acct["type"] == "/cosmos.vesting.v1beta1.PeriodicVestingAccount"
-    scale_factor = 4_000_000_000_000
-    expected_coin = {"denom": DEFAULT_DENOM, "amount": f"{periodic_amt * scale_factor}"}
-    assert acct["value"]["base_vesting_account"]["original_vesting"] == [expected_coin]
-    assert acct["value"]["vesting_periods"][0]["amount"] == [expected_coin]
-
-    c.supervisorctl("stop", "all")
-    distribution = cli.export(modules_to_export="distribution")["app_state"][
-        "distribution"
-    ]
-    assert "uom" not in json.dumps(distribution)
 
     target_height = cli.block_height() + 15
-    cli = do_upgrade(c, "v7.0.0-rc0", target_height)
+    cli = do_upgrade(c, "v7.0.0-rc0", target_height, denom=LEGACY_DENOM)
     await ERC20.fns.transfer(receiver, transfer_amt2).transact(
         w3, sender, to=tf_erc20_addr, gasPrice=(await w3.eth.gas_price)
     )
@@ -207,6 +194,19 @@ async def exec(c, tmp_path):
     await ERC20.fns.balanceOf(sender).call(
         w3, to=tf_erc20_addr, block_identifier=old_height
     )
+
+    acct = cli.account(periodic_addr)["account"]
+    assert acct["type"] == "/cosmos.vesting.v1beta1.PeriodicVestingAccount"
+    scale_factor = 4_000_000_000_000
+    expected_coin = {"denom": DEFAULT_DENOM, "amount": f"{periodic_amt * scale_factor}"}
+    assert acct["value"]["base_vesting_account"]["original_vesting"] == [expected_coin]
+    assert acct["value"]["vesting_periods"][0]["amount"] == [expected_coin]
+
+    c.supervisorctl("stop", "all")
+    distribution = cli.export(modules_to_export="distribution")["app_state"][
+        "distribution"
+    ]
+    assert "uom" not in json.dumps(distribution)
 
 
 async def test_cosmovisor_upgrade(custom_mantra: Mantra, tmp_path):

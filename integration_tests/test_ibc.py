@@ -1,12 +1,11 @@
-import hashlib
 import json
 import math
 
 import pytest
 from eth_contract.erc20 import ERC20
-from pystarport.utils import wait_for_fn, wait_for_fn_async
+from pystarport.utils import wait_for_fn_async
 
-from .ibc_utils import hermes_transfer, prepare_network
+from .ibc_utils import hermes_transfer, ibc_denom_hash, prepare_network
 from .utils import (
     ADDRS,
     DEFAULT_DENOM,
@@ -27,6 +26,7 @@ from .utils import (
     generate_isolated_address,
     ibc_denom_address,
     parse_events_rpc,
+    wait_for_balance_change,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -61,14 +61,6 @@ def assert_dup_events(cli):
     for event in events:
         dup = find_duplicate(event["attributes"])
         assert not dup, f"duplicate {dup} in {event['type']}"
-
-
-def wait_for_balance_change(cli, addr, denom, init_balance):
-    def check_balance():
-        current_balance = cli.balance(addr, denom)
-        return current_balance if current_balance != init_balance else None
-
-    return wait_for_fn("balance change", check_balance)
 
 
 async def assert_tokenfactory_flow(cli, w3, signer1, receiver):
@@ -139,12 +131,15 @@ async def test_ibc_transfer(ibc):
     addr_signer2 = eth_to_bech32(signer2)
     addr_signer1 = eth_to_bech32(signer1)
     addr_community = eth_to_bech32(community)
+    port = "transfer"
+    channel = "channel-0"
+    path = f"{port}/{channel}/{DEFAULT_DENOM}"
 
     # mantra-canary-net-2 signer2 -> mantra-canary-net-1 signer1 100 baseunit
     transfer_amt = 100
     src_chain = "mantra-canary-net-2"
     dst_chain = "mantra-canary-net-1"
-    path, escrow_addr = hermes_transfer(
+    escrow_addr = hermes_transfer(
         ibc,
         src_chain,
         "signer2",
@@ -152,7 +147,7 @@ async def test_ibc_transfer(ibc):
         dst_chain,
         addr_signer1,
     )
-    denom_hash = hashlib.sha256(path.encode()).hexdigest().upper()
+    denom_hash = ibc_denom_hash(path)
     dst_denom = f"ibc/{denom_hash}"
     signer1_balance_bf = cli.balance(addr_signer1, dst_denom)
     signer1_balance = wait_for_balance_change(
@@ -169,7 +164,7 @@ async def test_ibc_transfer(ibc):
     rsp = cli.ibc_transfer(
         community,
         f"{amount}{DEFAULT_DENOM}",
-        "channel-0",
+        channel,
         from_=addr_signer1,
     )
     assert rsp["code"] == 0, rsp["raw_log"]
@@ -196,10 +191,11 @@ async def test_ibc_transfer(ibc):
     src_chain = "mantra-canary-net-1"
     dst_chain = "mantra-canary-net-2"
 
-    path, escrow_addr = hermes_transfer(
+    path = f"{port}/{channel}/{denom}"
+    escrow_addr = hermes_transfer(
         ibc, src_chain, "signer1", transfer_amt, dst_chain, addr_signer2, denom=denom
     )
-    denom_hash = hashlib.sha256(path.encode()).hexdigest().upper()
+    denom_hash = ibc_denom_hash(path)
     dst_denom = f"ibc/{denom_hash}"
     signer2_balance_bf = cli2.balance(addr_signer2, dst_denom)
     signer2_balance = wait_for_balance_change(
@@ -265,6 +261,7 @@ async def test_ibc_cb(ibc):
     cli2 = ibc.ibc2.cosmos_cli()
     signer1 = ADDRS["signer1"]
     signer2 = ADDRS["signer2"]
+
     addr_signer2 = eth_to_bech32(signer2)
     erc20_denom, total = await assert_create_erc20_denom(w3, signer1)
 
@@ -280,9 +277,10 @@ async def test_ibc_cb(ibc):
     src_chain = "mantra-canary-net-1"
     dst_chain = "mantra-canary-net-2"
     channel = "channel-0"
-    isolated = generate_isolated_address(channel, addr_signer2)
+    port = "transfer"
+    path = f"{port}/{channel}/{erc20_denom}"
 
-    path, escrow_addr = hermes_transfer(
+    escrow_addr = hermes_transfer(
         ibc,
         src_chain,
         "signer1",
@@ -292,7 +290,7 @@ async def test_ibc_cb(ibc):
         denom=erc20_denom,
     )
 
-    denom_hash = hashlib.sha256(path.encode()).hexdigest().upper()
+    denom_hash = ibc_denom_hash(path)
     dst_denom = f"ibc/{denom_hash}"
     signer2_balance_bf = cli2.balance(addr_signer2, dst_denom)
     signer2_balance = wait_for_balance_change(
@@ -314,6 +312,8 @@ async def test_ibc_cb(ibc):
     # mantra-canary-net-2 signer2 -> mantra-canary-net-1 signer1 50erc20_denom
     src_chain = "mantra-canary-net-2"
     dst_chain = "mantra-canary-net-1"
+    isolated = generate_isolated_address(channel, addr_signer2)
+
     hermes_transfer(
         ibc,
         src_chain,

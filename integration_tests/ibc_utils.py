@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import subprocess
@@ -29,7 +30,6 @@ def add_key(hermes, chain, mnemonic_env, key_name):
     with tempfile.NamedTemporaryFile("w", delete=False) as f:
         f.write(os.getenv(mnemonic_env))
         path = f.name
-        print("mm-path", path)
     try:
         subprocess.check_call(
             [
@@ -85,7 +85,16 @@ def call_hermes_cmd(hermes, incentivized, version, b_chain="mantra-canary-net-2"
     add_key(hermes, b_chain, "SIGNER2_MNEMONIC", "signer2")
 
 
-def prepare_network(tmp_path, name, chain, b_chain="mantra-canary-net-2", cmd=CMD):
+def prepare_network(
+    tmp_path,
+    name,
+    chain,
+    b_chain="mantra-canary-net-2",
+    cmd=CMD,
+    post_init=None,
+    chain_binary=None,
+    genesis=None,
+):
     name = f"configs/{name}.jsonnet"
     with contextmanager(setup_custom_mantra)(
         tmp_path,
@@ -93,6 +102,9 @@ def prepare_network(tmp_path, name, chain, b_chain="mantra-canary-net-2", cmd=CM
         Path(__file__).parent / name,
         relayer=cluster.Relayer.HERMES.value,
         chain=chain,
+        post_init=post_init,
+        chain_binary=chain_binary,
+        genesis=genesis,
     ) as ibc1:
         cli = ibc1.cosmos_cli()
         ibc2 = Mantra(ibc1.base_dir.parent / b_chain, chain_binary=cmd)
@@ -117,12 +129,12 @@ def hermes_transfer(
     src_amount,
     dst_chain,
     dst_addr,
+    port="transfer",
+    channel="channel-0",
     denom=DEFAULT_DENOM,
     memo=None,
     prefix=ADDRESS_PREFIX,
 ):
-    port = "transfer"
-    channel = "channel-0"
     # wait for hermes
     output = subprocess.getoutput(
         f"curl -s -X GET 'http://127.0.0.1:{ibc.hermes.port}/state' | jq"
@@ -138,4 +150,8 @@ def hermes_transfer(
     if memo:
         cmd += f" --memo '{memo}'"
     subprocess.run(cmd, check=True, shell=True)
-    return f"{port}/{channel}/{denom}", escrow_address(port, channel, prefix=prefix)
+    return escrow_address(port, channel, prefix=prefix)
+
+
+def ibc_denom_hash(path):
+    return hashlib.sha256(path.encode()).hexdigest().upper()

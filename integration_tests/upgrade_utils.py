@@ -22,6 +22,9 @@ from .utils import (
     send_transaction,
 )
 
+LEGACY_DENOM = "uom"
+LEGACY_EXTENDED_DENOM = "aom"
+
 
 def do_upgrade(c, plan_name, target, denom=DEFAULT_DENOM):
     print(f"upgrade {plan_name} height: {target}")

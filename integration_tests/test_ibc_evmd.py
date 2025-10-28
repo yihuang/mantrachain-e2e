@@ -1,13 +1,11 @@
-import hashlib
-
 import pytest
-from pystarport.utils import wait_for_fn
 
-from .ibc_utils import hermes_transfer, prepare_network
+from .ibc_utils import hermes_transfer, ibc_denom_hash, prepare_network
 from .utils import (
     ADDRS,
     DEFAULT_DENOM,
     eth_to_bech32,
+    wait_for_balance_change,
 )
 
 pytestmark = pytest.mark.slow
@@ -24,14 +22,6 @@ def ibc(request, tmp_path_factory):
     )
 
 
-def wait_for_balance_change(cli, addr, denom, init_balance):
-    def check_balance():
-        current_balance = cli.balance(addr, denom)
-        return current_balance if current_balance != init_balance else None
-
-    return wait_for_fn("balance change", check_balance)
-
-
 @pytest.mark.flaky(max_runs=2)
 def test_ibc_transfer(ibc):
     cli = ibc.ibc1.cosmos_cli()
@@ -42,22 +32,27 @@ def test_ibc_transfer(ibc):
     addr_signer1 = eth_to_bech32(signer1)
     addr_community = eth_to_bech32(community, prefix=prefix)
     denom = "atest"
+    port = "transfer"
+    channel = "channel-0"
+    path = f"{port}/{channel}/{denom}"
 
     # evm-canary-net-1 signer2 -> mantra-canary-net-1 signer1 100atest
     transfer_amt = 100
     src_chain = "evm-canary-net-1"
     dst_chain = "mantra-canary-net-1"
-    path, escrow_addr = hermes_transfer(
+    escrow_addr = hermes_transfer(
         ibc,
         src_chain,
         "signer2",
         transfer_amt,
         dst_chain,
         addr_signer1,
+        port=port,
+        channel=channel,
         denom=denom,
         prefix=prefix,
     )
-    denom_hash = hashlib.sha256(path.encode()).hexdigest().upper()
+    denom_hash = ibc_denom_hash(path)
     dst_denom = f"ibc/{denom_hash}"
     signer1_balance_bf = cli.balance(addr_signer1, dst_denom)
     signer1_balance = wait_for_balance_change(
@@ -67,10 +62,9 @@ def test_ibc_transfer(ibc):
     assert cli.ibc_denom_hash(path) == denom_hash
     cli2.balance(escrow_addr, denom=denom) == transfer_amt
 
-    # mantra-canary-net-1 signer1 -> evm-canary-net-1 community eth addr with 5uom
-    parts = path.rsplit("/", 1)
-    path = f"{parts[0]}/uom"
-    denom_hash = hashlib.sha256(path.encode()).hexdigest().upper()
+    # mantra-canary-net-1 signer1 -> evm-canary-net-1 community eth addr with 5 baseunit
+    path = f"{port}/{channel}/{DEFAULT_DENOM}"
+    denom_hash = ibc_denom_hash(path)
     dst_denom = f"ibc/{denom_hash}"
     amount = 5
     rsp = cli.ibc_transfer(

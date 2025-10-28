@@ -36,6 +36,7 @@ from hexbytes import HexBytes
 from pystarport import cluster
 from pystarport.utils import (
     wait_for_block_time,
+    wait_for_fn,
     wait_for_new_blocks,
 )
 from web3 import AsyncWeb3
@@ -958,3 +959,11 @@ def duration(duration_str):
     mult = {"s": 1, "m": 60, "h": 3600, "d": 86400}
     parts = re.findall(r"(\d+)([smhd])", duration_str.lower())
     return sum(int(value) * mult[unit] for value, unit in parts)
+
+
+def wait_for_balance_change(cli, addr, denom, init_balance):
+    def check_balance():
+        current_balance = cli.balance(addr, denom)
+        return current_balance if current_balance != init_balance else None
+
+    return wait_for_fn("balance change", check_balance)
