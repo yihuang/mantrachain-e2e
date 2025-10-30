@@ -920,9 +920,9 @@ web3 = ">=7.12.0"
 
 [package.source]
 type = "git"
-url = "https://github.com/yihuang/eth-contract.git"
-reference = "main"
-resolved_reference = "818d39d43a150cd2c36ea1a5c89db3461f80a8fa"
+url = "https://github.com/mmsqe/eth-contract.git"
+reference = "event"
+resolved_reference = "ad4b03b2d4c8d206585af7bb2a576a4a56d7efe4"
 
 [[package]]
 name = "eth-hash"
@@ -2048,8 +2048,8 @@ tomlkit = "^0"
 [package.source]
 type = "git"
 url = "https://github.com/MANTRA-Chain/pystarport.git"
-reference = "main"
-resolved_reference = "5cd2a527bb515c0b70e95033856bafd39121020f"
+reference = "ref_cmd"
+resolved_reference = "e3fecb361b4a6c5a8ab41fc89b8df10705b8df2c"
 
 [[package]]
 name = "pytest"
@@ -2908,4 +2908,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "f085d852f42614b22d10c78adc7abde555f2cdecde10ea991698b221665c0b60"
+content-hash = "29efb76c1555debfb2420790bd42df629e4b3ba317a4f4df7dee7a6d894ca965"

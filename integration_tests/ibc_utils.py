@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from pystarport import cluster, ports
+from pystarport.utils import wait_for_new_blocks, wait_for_port
 
 from .network import Hermes, Mantra, setup_custom_mantra
 from .utils import (
@@ -15,8 +16,6 @@ from .utils import (
     CMD,
     DEFAULT_DENOM,
     escrow_address,
-    wait_for_new_blocks,
-    wait_for_port,
 )
 
 

@@ -11,6 +11,12 @@ from dateutil.parser import isoparse
 from eth_account import Account
 from eth_contract.contract import Contract
 from pystarport import cluster
+from pystarport.utils import (
+    BondStatus,
+    wait_for_block,
+    wait_for_block_time,
+    wait_for_new_blocks,
+)
 
 from .network import setup_custom_mantra
 from .utils import (
@@ -19,16 +25,12 @@ from .utils import (
     DEFAULT_DENOM,
     WEI_PER_DENOM,
     WEI_PER_ETH,
-    BondStatus,
     address_to_bytes32,
     bech32_to_eth,
     build_contract,
     duration,
     edit_app_cfg,
     find_log_event_attrs,
-    wait_for_block,
-    wait_for_block_time,
-    wait_for_new_blocks,
 )
 
 PRECOMPILE = Contract(build_contract("StakingI")["abi"])
@@ -101,7 +103,7 @@ async def test_connect_staking_unbond(connect_mantra, tmp_path):
 
 async def test_staking_unbond(mantra, connect_mantra, tmp_path):
     cli = connect_mantra.cosmos_cli(tmp_path)
-    unbond_duration = duration(cli.get_params("staking")["params"]["unbonding_time"])
+    unbond_duration = duration(cli.get_params("staking")["unbonding_time"])
     if unbond_duration > 60:
         pytest.skip(f"unbond_duration is {unbond_duration} too long for test")
     w3 = connect_mantra.async_w3

@@ -3,16 +3,18 @@ from datetime import timedelta
 import pytest
 import requests
 from dateutil.parser import isoparse
-from pystarport.utils import parse_amount
+from pystarport.utils import (
+    parse_amount,
+    wait_for_block,
+    wait_for_block_time,
+    wait_for_new_blocks,
+)
 
 from .utils import (
     DEFAULT_DENOM,
     eth_to_bech32,
     find_fee,
     find_log_event_attrs,
-    wait_for_block,
-    wait_for_block_time,
-    wait_for_new_blocks,
 )
 
 pytestmark = pytest.mark.slow
@@ -25,7 +27,7 @@ def test_connect_distribution(connect_mantra, tmp_path):
 
 def test_distribution(mantra, connect_mantra, tmp_path):
     cli = connect_mantra.cosmos_cli(tmp_path)
-    tax = cli.get_params("distribution")["params"]["community_tax"]
+    tax = cli.get_params("distribution")["community_tax"]
     if float(tax) < 0.01:
         pytest.skip(f"community_tax is {tax} too low for test")
     signer1, signer2 = cli.address("signer1"), cli.address("signer2")
