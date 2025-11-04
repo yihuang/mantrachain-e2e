@@ -5,6 +5,12 @@ from pathlib import Path
 import pytest
 from dateutil.parser import isoparse
 from pystarport import cluster
+from pystarport.utils import (
+    BondStatus,
+    wait_for_block,
+    wait_for_block_time,
+    wait_for_new_blocks,
+)
 
 from .network import setup_custom_mantra
 from .utils import (
@@ -12,14 +18,10 @@ from .utils import (
     DEFAULT_DENOM,
     DEFAULT_GAS_PRICE,
     WEI_PER_DENOM,
-    BondStatus,
     duration,
     edit_app_cfg,
     find_fee,
     find_log_event_attrs,
-    wait_for_block,
-    wait_for_block_time,
-    wait_for_new_blocks,
 )
 
 pytestmark = pytest.mark.slow
@@ -44,7 +46,7 @@ def test_connect_staking_unbond(connect_mantra, tmp_path):
 
 def test_staking_unbond(mantra, connect_mantra, tmp_path):
     cli = connect_mantra.cosmos_cli(tmp_path)
-    unbond_duration = duration(cli.get_params("staking")["params"]["unbonding_time"])
+    unbond_duration = duration(cli.get_params("staking")["unbonding_time"])
     if unbond_duration > 60:
         pytest.skip(f"unbond_duration is {unbond_duration} too long for test")
     name = "signer1"

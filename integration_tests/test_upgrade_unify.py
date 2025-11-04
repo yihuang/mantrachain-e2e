@@ -3,6 +3,7 @@ import time
 
 import pytest
 from eth_contract.erc20 import ERC20
+from pystarport.utils import wait_for_new_blocks
 
 from .network import Mantra
 from .upgrade_utils import (
@@ -23,7 +24,6 @@ from .utils import (
     denom_to_erc20_address,
     derive_new_account,
     eth_to_bech32,
-    wait_for_new_blocks,
 )
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.skipped]
@@ -127,6 +127,8 @@ async def exec(c, tmp_path):
         == transfer_amt2
     )
 
+    old_height = cli.block_height()
+
     active_precompiles = [
         "0x0000000000000000000000000000000000000800",
         "0x0000000000000000000000000000000000000801",
@@ -142,7 +144,7 @@ async def exec(c, tmp_path):
     ]
     assert all(item in cli.query_disabled_list() for item in expected)
 
-    evm_params = cli.get_params("evm")["params"]
+    evm_params = cli.get_params("evm")
     meta = cli.query_bank_denom_metadata(evm_params["evm_denom"])
     if meta["denom_units"][1]["exponent"] == 6:
         assert (
@@ -167,7 +169,7 @@ async def exec(c, tmp_path):
     )
 
     target_height = cli.block_height() + 15
-    cli = do_upgrade(c, "v7.0.0-rc0", target_height, denom=LEGACY_DENOM)
+    cli = do_upgrade(c, "v6.1.0", target_height, denom=LEGACY_DENOM)
     await ERC20.fns.transfer(receiver, transfer_amt2).transact(
         w3, sender, to=tf_erc20_addr, gasPrice=(await w3.eth.gas_price)
     )
@@ -188,6 +190,23 @@ async def exec(c, tmp_path):
         "distribution"
     ]
     assert "uom" not in json.dumps(distribution)
+
+    target_height = cli.block_height() + 15
+    cli = do_upgrade(c, "v7.0.0-rc0", target_height)
+    await ERC20.fns.transfer(receiver, transfer_amt2).transact(
+        w3, sender, to=tf_erc20_addr, gasPrice=(await w3.eth.gas_price)
+    )
+    assert (
+        cli.balance(addr_b, denom)
+        == await ERC20.fns.balanceOf(sender).call(w3, to=tf_erc20_addr)
+        == transfer_amt - transfer_amt2 * 4
+    )
+
+    # test historical contract calls
+    assert greeter.contract.caller(block_identifier=old_height).greet() == "Hello"
+    await ERC20.fns.balanceOf(sender).call(
+        w3, to=tf_erc20_addr, block_identifier=old_height
+    )
 
 
 async def test_cosmovisor_upgrade(custom_mantra: Mantra, tmp_path):

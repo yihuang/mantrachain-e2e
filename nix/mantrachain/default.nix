@@ -47,6 +47,7 @@ let
   tags =
     [
       "ledger"
+      "ledger_zemu"
       "netgo"
       "osusergo"
       "pebbledb"
@@ -84,10 +85,10 @@ buildGo123Module' rec {
   src = fetchFromGitHub {
     owner = "MANTRA-Chain";
     repo = pname;
-    rev = "fcfd51d8c9154dfe3ed6d334b4855c9f40a79e46";
-    hash = "sha256-afYdRCM9BY/OpFZfIGQy/VPEV327waBfwrbSbP4KMeA=";
+    rev = "2ba6e4d76683abd0aaca639bec82cbc6e3e02866";
+    hash = "sha256-9aL2ORn61gGOXFIzcz+PFADtv/dfjPVknbiOVs5nTI0=";
   };
-  vendorHash = "sha256-7aHQNMKIDQGA0UoWv0et6GEQJzWgsADiaEhPkPsgER8=";
+  vendorHash = "sha256-U1sXFtILq61AaSSM+BSASZmvwKE+mdDF8tcqpaAAZxU=";
   proxyVendor = true;
   subPackages = [ "cmd/mantrachaind" ];
   CGO_ENABLED = "1";
