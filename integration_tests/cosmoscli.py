@@ -103,6 +103,18 @@ class CosmosCLI(PystarportCosmosCLI):
                 raise
         return output.strip().decode()
 
+    def delete_account(self, name):
+        return self.raw(
+            "keys",
+            "delete",
+            name,
+            "-y",
+            "--force",
+            home=self.data_dir,
+            output="json",
+            keyring_backend="test",
+        )
+
     def debug_addr(self, eth_addr, bech="acc"):
         output = self.raw("debug", "addr", eth_addr).decode().strip().split("\n")
         if bech == "val":

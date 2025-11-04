@@ -47,6 +47,7 @@ let
   tags =
     [
       "ledger"
+      "ledger_zemu"
       "netgo"
       "osusergo"
       "pebbledb"
