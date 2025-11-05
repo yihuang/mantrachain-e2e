@@ -94,7 +94,7 @@ async def test_delegation_rewards_flow(mantra, connect_mantra, tmp_path):
     assert rewards_af >= rewards_bf, "rewards should increase"
 
     balance_bf = await w3.eth.get_balance(signer2_eth)
-    res = await PRECOMPILE.fns.claimRewards(acct.address, 1).transact(
+    res = await PRECOMPILE.fns.withdrawDelegatorRewards(acct.address, val).transact(
         w3, acct, to=DISTRIBUTION, gas=gas
     )
     assert res.status == 1
