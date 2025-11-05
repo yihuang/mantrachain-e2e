@@ -158,8 +158,6 @@ def exec(c, tmp_path):
     denom_hash = ibc_denom_hash(path)
     dst_denom = f"ibc/{denom_hash}"
     signer1_balance_bf = cli.balance(addr_signer1, dst_denom)
-    # TODO: check path
-    return
     signer1_balance = wait_for_balance_change(
         cli, addr_signer1, dst_denom, signer1_balance_bf
     )
