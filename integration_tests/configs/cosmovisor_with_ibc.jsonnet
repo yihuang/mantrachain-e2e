@@ -113,7 +113,7 @@ ibc {
       super.chains[0] {
         gas_price+: {
           denom: legacy_evm_denom,
-          price: 40000000000,
+          price: 0.1,
         },
       },
     ] + super.chains[1:],

@@ -22,7 +22,6 @@ def ibc(request, tmp_path_factory):
     )
 
 
-@pytest.mark.flaky(max_runs=2)
 def test_ibc_transfer(ibc):
     cli = ibc.ibc1.cosmos_cli()
     cli2 = ibc.ibc2.cosmos_cli()

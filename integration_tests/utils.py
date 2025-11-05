@@ -64,7 +64,7 @@ DEFAULT_EXTENDED_DENOM = os.getenv("EVM_EXTENDED_DENOM", "amantra")
 CHAIN_ID = os.getenv("CHAIN_ID", "mantra-canary-net-1")
 EVM_CHAIN_ID = int(os.getenv("EVM_CHAIN_ID", 7888))
 # the default initial base fee used by integration tests
-DEFAULT_GAS_AMT = float(os.getenv("DEFAULT_GAS_AMT", 10000000000))
+DEFAULT_GAS_AMT = float(os.getenv("DEFAULT_GAS_AMT", 40000000000))
 DEFAULT_GAS_PRICE = f"{DEFAULT_GAS_AMT}{DEFAULT_DENOM}"
 DEFAULT_GAS = 200000
 WEI_PER_ETH = 10**18  # 10^18 wei == 1 ether
@@ -802,7 +802,7 @@ def do_multisig(cli, tmp_path, signer1_name, signer2_name, multisig_name):
     signer2 = cli.address(signer2_name)
     cli.make_multisig(multisig_name, signer1_name, signer2_name)
     multi_addr = cli.address(multisig_name)
-    amt = 4_000_000_000_000_000 // WEI_PER_DENOM
+    amt = 9_000_000_000_000_000 // WEI_PER_DENOM
     rsp = cli.transfer(signer1, multi_addr, f"{amt}{DEFAULT_DENOM}")
     assert rsp["code"] == 0, rsp["raw_log"]
     acc = cli.account(multi_addr)

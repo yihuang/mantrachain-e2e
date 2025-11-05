@@ -120,7 +120,6 @@ def assert_receiver_events(cli, cli2, target):
     assert receiver == target
 
 
-@pytest.mark.flaky(max_runs=2)
 async def test_ibc_transfer(ibc):
     w3 = ibc.ibc1.async_w3
     cli = ibc.ibc1.cosmos_cli()
@@ -254,7 +253,6 @@ async def prepare_dest_callback(w3, sender, amt):
     return contract.address, json.dumps(dest_cb)
 
 
-@pytest.mark.flaky(max_runs=2)
 async def test_ibc_cb(ibc):
     w3 = ibc.ibc1.async_w3
     cli = ibc.ibc1.cosmos_cli()

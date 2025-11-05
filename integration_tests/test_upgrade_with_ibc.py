@@ -9,7 +9,14 @@ import tomlkit
 from .ibc_utils import hermes_transfer, ibc_denom_hash, prepare_network
 from .network import Mantra
 from .upgrade_utils import LEGACY_DENOM, cleanup_upgrades_folder, do_upgrade, post_init
-from .utils import ADDRS, CMD, DEFAULT_DENOM, eth_to_bech32, wait_for_balance_change
+from .utils import (
+    ADDRS,
+    CMD,
+    DEFAULT_DENOM,
+    DEFAULT_GAS_AMT,
+    eth_to_bech32,
+    wait_for_balance_change,
+)
 
 pytestmark = [pytest.mark.slow, pytest.mark.skipped]
 
@@ -115,18 +122,16 @@ def exec(c, tmp_path):
     c.ibc1.supervisorctl("stop", "relayer-demo")
     rly_cfg = c.hermes.configpath
     cfg = tomlkit.parse(rly_cfg.read_text())
-    cfg["chains"][1]["gas_price"]["denom"] = DEFAULT_DENOM
+    cfg["chains"][1]["gas_price"] = {"denom": DEFAULT_DENOM, "price": DEFAULT_GAS_AMT}
     rly_cfg.write_text(tomlkit.dumps(cfg))
     c.ibc1.supervisorctl("start", "relayer-demo")
 
     # mantra-canary-net-1 signer1 -> evm-canary-net-1 community eth addr with 5 baseunit
-    gas_prices = f"40000000000{DEFAULT_DENOM}"
     rsp = cli.ibc_transfer(
         community,
         f"{amount}{DEFAULT_DENOM}",
         channel,
         from_=addr_signer1,
-        gas_prices=gas_prices,
     )
     assert rsp["code"] == 0, rsp["raw_log"]
     path = f"{port}/{channel}/{DEFAULT_DENOM}"
