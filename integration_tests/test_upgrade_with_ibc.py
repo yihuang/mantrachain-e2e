@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import tomlkit
 
 from .ibc_utils import hermes_transfer, ibc_denom_hash, prepare_network
 from .network import Mantra
@@ -110,6 +111,13 @@ def exec(c, tmp_path):
 
     target_height = cli.block_height() + 15
     cli = do_upgrade(c.ibc1, "v7.0.0-rc0", target_height, denom=LEGACY_DENOM)
+
+    c.ibc1.supervisorctl("stop", "relayer-demo")
+    rly_cfg = c.hermes.configpath
+    cfg = tomlkit.parse(rly_cfg.read_text())
+    cfg["chains"][1]["gas_price"]["denom"] = DEFAULT_DENOM
+    rly_cfg.write_text(tomlkit.dumps(cfg))
+    c.ibc1.supervisorctl("start", "relayer-demo")
 
     # mantra-canary-net-1 signer1 -> evm-canary-net-1 community eth addr with 5 baseunit
     gas_prices = f"40000000000{DEFAULT_DENOM}"
