@@ -28,7 +28,6 @@ let
       "pebbledb"
     ]
     ++ lib.optionals nativeByteOrder [ "nativebyteorder" ]
-    ++ lib.optionals buildStdenv.isDarwin [ "static_wasm" ]
     ++ lib.optionals buildStdenv.isLinux [ "muslc" ];
 
   ldflags =
