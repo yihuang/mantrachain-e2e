@@ -2,8 +2,13 @@ import json
 import time
 
 import pytest
+from eth_account.signers.base import BaseAccount
+from eth_contract.deploy_utils import ensure_deployed_by_create2
 from eth_contract.erc20 import ERC20
+from eth_contract.utils import get_initcode, send_transaction
+from eth_utils import to_checksum_address
 from pystarport.utils import wait_for_new_blocks
+from web3 import AsyncWeb3
 
 from .network import Mantra
 from .upgrade_utils import (
@@ -14,7 +19,9 @@ from .upgrade_utils import (
     setup_mantra_upgrade,
 )
 from .utils import (
+    ACCOUNTS,
     DEFAULT_DENOM,
+    WETH_SALT,
     Greeter,
     assert_create_tokenfactory_denom,
     assert_mint_tokenfactory_denom,
@@ -22,6 +29,7 @@ from .utils import (
     assert_transfer,
     assert_transfer_tokenfactory_denom,
     bech32_to_eth,
+    build_contract,
     create_periodic_vesting_acct,
     denom_to_erc20_address,
     derive_new_account,
@@ -40,6 +48,16 @@ def custom_mantra(request, tmp_path_factory):
         "cosmovisor",
         "genesis",
         chain=chain,
+    )
+
+
+async def deploy_wom(w3: AsyncWeb3, account: BaseAccount):
+    artifact = build_contract("WOM")
+    return await ensure_deployed_by_create2(
+        w3,
+        account,
+        get_initcode(artifact),
+        salt=WETH_SALT,
     )
 
 
@@ -178,6 +196,24 @@ async def exec(c, tmp_path):
         == transfer_amt - transfer_amt2 * 3
     )
 
+    deployer = acc_c
+    async_w3 = c.async_w3
+    wom = await deploy_wom(async_w3, deployer)
+    print("wom", wom)
+    # deposit
+    await send_transaction(async_w3, deployer, to=wom, value=1000)
+    # approve
+    spender = to_checksum_address(b"\x01" * 20)
+    await ERC20.fns.approve(spender, 500).transact(async_w3, deployer, to=wom)
+
+    print("before migration:")
+    print(await async_w3.eth.call({"to": wom, "data": ERC20.fns.name().data}))
+    print(await ERC20.fns.name().call(async_w3, to=wom))
+    print(await ERC20.fns.symbol().call(async_w3, to=wom))
+    print(await ERC20.fns.decimals().call(async_w3, to=wom))
+    print(await ERC20.fns.balanceOf(deployer.address).call(async_w3, to=wom))
+    print(await ERC20.fns.allowance(deployer.address, spender).call(async_w3, to=wom))
+
     target_height = cli.block_height() + 15
     cli = do_upgrade(c, "v7.0.0-rc0", target_height, denom=LEGACY_DENOM)
     await ERC20.fns.transfer(receiver, transfer_amt2).transact(
@@ -188,6 +224,14 @@ async def exec(c, tmp_path):
         == await ERC20.fns.balanceOf(sender).call(w3, to=tf_erc20_addr)
         == transfer_amt - transfer_amt2 * 4
     )
+
+    # test wom migration
+    print("after migration:")
+    # print(await ERC20.fns.name().call(async_w3, to=wom))
+    # print(await ERC20.fns.symbol().call(async_w3, to=wom))
+    print(await ERC20.fns.decimals().call(async_w3, to=wom))
+    print(await ERC20.fns.balanceOf(deployer.address).call(async_w3, to=wom))
+    print(await ERC20.fns.allowance(deployer.address, spender).call(async_w3, to=wom))
 
     # test historical contract calls
     assert greeter.contract.caller(block_identifier=old_height).greet() == "Hello"
