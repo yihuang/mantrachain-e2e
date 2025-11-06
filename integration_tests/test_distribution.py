@@ -137,6 +137,7 @@ def test_connect_validator_rewards_pool_funding(connect_mantra, tmp_path):
     test_validator_rewards_pool_funding(None, connect_mantra, tmp_path)
 
 
+@pytest.mark.skipped
 def test_validator_rewards_pool_funding(mantra, connect_mantra, tmp_path):
     cli = connect_mantra.cosmos_cli(tmp_path)
     signer1 = cli.address("signer1")

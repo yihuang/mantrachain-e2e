@@ -1,13 +1,13 @@
 import hashlib
 
 import pytest
-from pystarport.utils import wait_for_fn
 
 from .ibc_utils import hermes_transfer, prepare_network
 from .utils import (
     ADDRS,
     DEFAULT_DENOM,
     eth_to_bech32,
+    wait_for_balance_change,
 )
 
 pytestmark = pytest.mark.slow
@@ -24,15 +24,6 @@ def ibc(request, tmp_path_factory):
     )
 
 
-def wait_for_balance_change(cli, addr, denom, init_balance):
-    def check_balance():
-        current_balance = cli.balance(addr, denom)
-        return current_balance if current_balance != init_balance else None
-
-    return wait_for_fn("balance change", check_balance)
-
-
-@pytest.mark.flaky(max_runs=2)
 def test_ibc_transfer(ibc):
     cli = ibc.ibc1.cosmos_cli()
     cli2 = ibc.ibc2.cosmos_cli()
@@ -69,7 +60,7 @@ def test_ibc_transfer(ibc):
 
     # mantra-canary-net-1 signer1 -> evm-canary-net-1 community eth addr with 5uom
     parts = path.rsplit("/", 1)
-    path = f"{parts[0]}/uom"
+    path = f"{parts[0]}/{DEFAULT_DENOM}"
     denom_hash = hashlib.sha256(path.encode()).hexdigest().upper()
     dst_denom = f"ibc/{denom_hash}"
     amount = 5

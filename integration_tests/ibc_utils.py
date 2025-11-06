@@ -29,7 +29,6 @@ def add_key(hermes, chain, mnemonic_env, key_name):
     with tempfile.NamedTemporaryFile("w", delete=False) as f:
         f.write(os.getenv(mnemonic_env))
         path = f.name
-        print("mm-path", path)
     try:
         subprocess.check_call(
             [

@@ -4,7 +4,7 @@ import math
 
 import pytest
 from eth_contract.erc20 import ERC20
-from pystarport.utils import wait_for_fn, wait_for_fn_async
+from pystarport.utils import wait_for_fn_async
 
 from .ibc_utils import hermes_transfer, prepare_network
 from .utils import (
@@ -27,6 +27,7 @@ from .utils import (
     generate_isolated_address,
     ibc_denom_address,
     parse_events_rpc,
+    wait_for_balance_change,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -61,14 +62,6 @@ def assert_dup_events(cli):
     for event in events:
         dup = find_duplicate(event["attributes"])
         assert not dup, f"duplicate {dup} in {event['type']}"
-
-
-def wait_for_balance_change(cli, addr, denom, init_balance):
-    def check_balance():
-        current_balance = cli.balance(addr, denom)
-        return current_balance if current_balance != init_balance else None
-
-    return wait_for_fn("balance change", check_balance)
 
 
 async def assert_tokenfactory_flow(cli, w3, signer1, receiver):
@@ -128,7 +121,6 @@ def assert_receiver_events(cli, cli2, target):
     assert receiver == target
 
 
-@pytest.mark.flaky(max_runs=2)
 async def test_ibc_transfer(ibc):
     w3 = ibc.ibc1.async_w3
     cli = ibc.ibc1.cosmos_cli()
@@ -258,7 +250,6 @@ async def prepare_dest_callback(w3, sender, amt):
     return contract.address, json.dumps(dest_cb)
 
 
-@pytest.mark.flaky(max_runs=2)
 async def test_ibc_cb(ibc):
     w3 = ibc.ibc1.async_w3
     cli = ibc.ibc1.cosmos_cli()
