@@ -4,7 +4,7 @@ import pytest
 from pystarport.ledger import Ledger
 
 from .network import setup_custom_mantra
-from .utils import DEFAULT_DENOM, find_fee
+from .utils import DEFAULT_DENOM, WEI_PER_DENOM, find_fee
 
 pytestmark = pytest.mark.slow
 pytest.skip("wait next bump deps", allow_module_level=True)
@@ -37,10 +37,10 @@ def test_ledger(custom_mantra):
     name = "hw"
     hw = cli.address(name)
     community = cli.address("community")
-    amt1 = 8000
+    amt1 = 8_000_000_000_000_000_000 // WEI_PER_DENOM
     assert cli.balance(hw) == amt1
     community_balance = cli.balance(community)
-    amt2 = 4000
+    amt2 = 4_000_000_000_000_000_000 // WEI_PER_DENOM
     rsp = cli.transfer(
         hw, community, f"{amt2}{DEFAULT_DENOM}", ledger=True, sign_mode="amino-json"
     )

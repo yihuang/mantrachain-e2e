@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
+from eth_abi import encode
 from eth_contract.contract import Contract, ContractFunction
 from eth_contract.create2 import create2_address
 from eth_contract.deploy_utils import (
@@ -31,6 +32,7 @@ from eth_contract.multicall3 import (
 )
 from eth_contract.utils import ZERO_ADDRESS, balance_of, get_initcode, send_transaction
 from eth_contract.weth import WETH, WETH9_ARTIFACT
+from eth_hash.auto import keccak
 from eth_utils import to_bytes
 from pystarport.utils import w3_wait_for_new_blocks_async
 from web3 import AsyncWeb3
@@ -368,3 +370,68 @@ async def test_upgrade(mantra):
     assert (await w3.eth.wait_for_transaction_receipt(hash)).status == 1
     proxy = w3.eth.contract(address=proxy.address, abi=token2.abi)
     assert (await proxy.functions.newFeature().call()) == "Upgraded!"
+
+
+async def test_storage_layout(mantra):
+    w3 = mantra.async_w3
+    acct = ACCOUNTS["validator"]
+
+    short = "Wrap Ether"
+    long = "Wrapped Ether Token for testing storage layout" * 32
+
+    artifact = build_contract("WETH9")
+
+    # deploy
+    receipt = await send_transaction(
+        w3, acct, data=get_initcode(artifact, short, long, 18)
+    )
+    contract = receipt["contractAddress"]
+
+    # deposit
+    await send_transaction(w3, acct, to=contract, value=1000)
+
+    # allowance
+    spender = ACCOUNTS["community"].address
+    await ERC20.fns.approve(spender, 500).transact(w3, acct, to=contract)
+
+    # name
+    slot = await w3.eth.get_storage_at(contract, 0)
+    # short string
+    assert slot[-1] % 2 == 0
+    length = slot[-1] // 2
+    name = slot[:length]
+    assert short == name.decode()
+
+    # symbol
+    slot = await w3.eth.get_storage_at(contract, 1)
+    # long string
+    assert slot[-1] % 2 == 1
+    length = int.from_bytes(slot) >> 1
+    assert len(long) == length
+
+    data_slots = (length + 31) // 32
+    data_begin = int.from_bytes(keccak((1).to_bytes(32, "big")), "big")
+    chunks = []
+    for i in range(data_slots):
+        s = await w3.eth.get_storage_at(contract, data_begin + i)
+        if i == data_slots - 1:
+            chunks.append(s[: length - i * 32])
+        else:
+            chunks.append(s)
+
+    assert long == b"".join(chunks).decode()
+
+    # decimals
+    decimals = await w3.eth.get_storage_at(contract, 2)
+    assert 18 == int.from_bytes(decimals)
+
+    # balances
+    slot = keccak(encode(["address", "uint256"], [acct.address, 3]))
+    balance = await w3.eth.get_storage_at(contract, slot)
+    assert int.from_bytes(balance, "big") == 1000
+
+    # allowances
+    tmp = keccak(encode(["address", "uint256"], [acct.address, 4]))
+    slot = keccak(encode(["address", "bytes32"], [spender, tmp]))
+    allowance = await w3.eth.get_storage_at(contract, slot)
+    assert int.from_bytes(allowance, "big") == 500
