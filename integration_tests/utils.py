@@ -665,7 +665,7 @@ def build_batch_tx(w3, cli, txs, key=KEYS["community"]):
         "auth_info": {
             "signer_infos": [],
             "fee": {
-                "amount": [{"denom": "aom", "amount": str(fee)}],
+                "amount": [{"denom": DEFAULT_EXTENDED_DENOM, "amount": str(fee)}],
                 "gas_limit": str(gas_limit),
                 "payer": "",
                 "granter": "",
