@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
+from eth_abi import encode
 from eth_contract.contract import Contract, ContractFunction
 from eth_contract.create2 import create2_address
 from eth_contract.deploy_utils import (
@@ -387,7 +388,11 @@ async def test_storage_layout(mantra):
     contract = receipt["contractAddress"]
 
     # deposit
-    await send_transaction(w3, contract, value=1000)
+    await send_transaction(w3, acct, to=contract, value=1000)
+
+    # allowance
+    spender = ACCOUNTS["community"].address
+    await ERC20.fns.approve(spender, 500).transact(w3, acct, to=contract)
 
     # name
     slot = await w3.eth.get_storage_at(contract, 0)
@@ -419,3 +424,14 @@ async def test_storage_layout(mantra):
     # decimals
     decimals = await w3.eth.get_storage_at(contract, 2)
     assert 18 == int.from_bytes(decimals)
+
+    # balances
+    slot = keccak(encode(["address", "uint256"], [acct.address, 3]))
+    balance = await w3.eth.get_storage_at(contract, slot)
+    assert int.from_bytes(balance, "big") == 1000
+
+    # allowances
+    tmp = keccak(encode(["address", "uint256"], [acct.address, 4]))
+    slot = keccak(encode(["address", "bytes32"], [spender, tmp]))
+    allowance = await w3.eth.get_storage_at(contract, slot)
+    assert int.from_bytes(allowance, "big") == 500
