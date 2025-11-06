@@ -31,6 +31,7 @@ from eth_contract.multicall3 import (
 )
 from eth_contract.utils import ZERO_ADDRESS, balance_of, get_initcode, send_transaction
 from eth_contract.weth import WETH, WETH9_ARTIFACT
+from eth_hash.auto import keccak
 from eth_utils import to_bytes
 from pystarport.utils import w3_wait_for_new_blocks_async
 from web3 import AsyncWeb3
@@ -368,3 +369,53 @@ async def test_upgrade(mantra):
     assert (await w3.eth.wait_for_transaction_receipt(hash)).status == 1
     proxy = w3.eth.contract(address=proxy.address, abi=token2.abi)
     assert (await proxy.functions.newFeature().call()) == "Upgraded!"
+
+
+async def test_storage_layout(mantra):
+    w3 = mantra.async_w3
+    acct = ACCOUNTS["validator"]
+
+    short = "Wrap Ether"
+    long = "Wrapped Ether Token for testing storage layout" * 32
+
+    artifact = build_contract("WETH9")
+
+    # deploy
+    receipt = await send_transaction(
+        w3, acct, data=get_initcode(artifact, short, long, 18)
+    )
+    contract = receipt["contractAddress"]
+
+    # deposit
+    await send_transaction(w3, contract, value=1000)
+
+    # name
+    slot = await w3.eth.get_storage_at(contract, 0)
+    # short string
+    assert slot[-1] % 2 == 0
+    length = slot[-1] // 2
+    name = slot[:length]
+    assert short == name.decode()
+
+    # symbol
+    slot = await w3.eth.get_storage_at(contract, 1)
+    # long string
+    assert slot[-1] % 2 == 1
+    length = int.from_bytes(slot) >> 1
+    assert len(long) == length
+
+    data_slots = (length + 31) // 32
+    data_begin = int.from_bytes(keccak((1).to_bytes(32, "big")), "big")
+    chunks = []
+    for i in range(data_slots):
+        s = await w3.eth.get_storage_at(contract, data_begin + i)
+        if i == data_slots - 1:
+            chunks.append(s[: length - i * 32])
+        else:
+            chunks.append(s)
+
+    assert long == b"".join(chunks).decode()
+
+    # decimals
+    decimals = await w3.eth.get_storage_at(contract, 2)
+    assert 18 == int.from_bytes(decimals)
