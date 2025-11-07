@@ -1,6 +1,6 @@
 import pytest
 
-from .ibc_utils import assert_hermes_transfer, prepare_network
+from .ibc_utils import assert_ibc_evmd_flow, prepare_network
 
 pytestmark = pytest.mark.slow
 
@@ -17,27 +17,4 @@ def ibc(request, tmp_path_factory):
 
 
 def test_ibc_transfer(ibc):
-    cli = ibc.ibc1.cosmos_cli()
-    cli2 = ibc.ibc2.cosmos_cli()
-    # evm-canary-net-1 signer2 -> mantra-canary-net-1 signer1 5atest
-    amt = 5
-    dst_denom, _ = assert_hermes_transfer(
-        ibc.hermes,
-        cli2,
-        "signer2",
-        amt,
-        cli,
-        cli.address("signer1"),
-        denom="atest",
-        prefix="cosmos",
-    )
-    # mantra-canary-net-1 signer1 -> evm-canary-net-1 signer2 with 5ibc_token
-    assert_hermes_transfer(
-        ibc.hermes,
-        cli,
-        "signer1",
-        amt,
-        cli2,
-        cli2.address("signer2"),
-        denom=dst_denom,
-    )
+    assert_ibc_evmd_flow(ibc)
