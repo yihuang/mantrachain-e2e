@@ -932,6 +932,8 @@ async def assert_tf_flow(w3, receiver, signer1, signer2, tf_erc20_addr):
     signer1_balance_bf = await ERC20.fns.balanceOf(signer1).call(w3, to=tf_erc20_addr)
     signer2_balance_bf = await ERC20.fns.balanceOf(signer2).call(w3, to=tf_erc20_addr)
     receiver_balance_bf = await ERC20.fns.balanceOf(receiver).call(w3, to=tf_erc20_addr)
+    assert signer1_balance_bf >= transfer_amt
+
     await retry_on_nonce_mismatch(
         ERC20.fns.transfer(receiver, transfer_amt).transact,
         w3,
@@ -949,6 +951,8 @@ async def assert_tf_flow(w3, receiver, signer1, signer2, tf_erc20_addr):
 
     # signer1 approve 2tf_erc20 to signer2
     approve_amt = 2
+    assert signer1_balance_bf >= approve_amt
+
     await retry_on_nonce_mismatch(
         ERC20.fns.approve(signer2, approve_amt).transact,
         w3,
@@ -956,6 +960,7 @@ async def assert_tf_flow(w3, receiver, signer1, signer2, tf_erc20_addr):
         to=tf_erc20_addr,
         gasPrice=(await w3.eth.gas_price),
     )
+    await asyncio.sleep(0.5)
     allowance = await ERC20.fns.allowance(signer1, signer2).call(w3, to=tf_erc20_addr)
     assert allowance == approve_amt
 
@@ -1016,3 +1021,14 @@ async def deploy_wom(w3: AsyncWeb3, account: BaseAccount) -> str:
         get_initcode(artifact),
         salt=WETH_SALT,
     )
+
+
+async def w3_wait_for_new_blocks_async(w3: AsyncWeb3, n: int, sleep=0.1):
+    begin_height = await w3.eth.block_number
+    target = begin_height + n
+
+    while True:
+        cur_height = await w3.eth.block_number
+        if cur_height >= target:
+            break
+        await asyncio.sleep(sleep)
