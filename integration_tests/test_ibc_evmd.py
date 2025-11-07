@@ -2,12 +2,11 @@ import hashlib
 
 import pytest
 
-from .ibc_utils import hermes_transfer, prepare_network
+from .ibc_utils import assert_hermes_transfer, assert_ibc_transfer, prepare_network
 from .utils import (
     ADDRS,
     DEFAULT_DENOM,
     eth_to_bech32,
-    wait_for_balance_change,
 )
 
 pytestmark = pytest.mark.slow
@@ -29,50 +28,35 @@ def test_ibc_transfer(ibc):
     cli2 = ibc.ibc2.cosmos_cli()
     signer1 = ADDRS["signer1"]
     community = ADDRS["community"]
-    prefix = "cosmos"
     addr_signer1 = eth_to_bech32(signer1)
-    addr_community = eth_to_bech32(community, prefix=prefix)
     denom = "atest"
+    prefix = "cosmos"
+    port = "transfer"
+    channel = "channel-0"
 
     # evm-canary-net-1 signer2 -> mantra-canary-net-1 signer1 100atest
     transfer_amt = 100
-    src_chain = "evm-canary-net-1"
-    dst_chain = "mantra-canary-net-1"
-    path, escrow_addr = hermes_transfer(
-        ibc,
-        src_chain,
+    dst_denom, _ = assert_hermes_transfer(
+        ibc.hermes,
+        cli2,
         "signer2",
         transfer_amt,
-        dst_chain,
+        cli,
         addr_signer1,
         denom=denom,
         prefix=prefix,
     )
-    denom_hash = hashlib.sha256(path.encode()).hexdigest().upper()
-    dst_denom = f"ibc/{denom_hash}"
-    signer1_balance_bf = cli.balance(addr_signer1, dst_denom)
-    signer1_balance = wait_for_balance_change(
-        cli, addr_signer1, dst_denom, signer1_balance_bf
-    )
-    assert signer1_balance == signer1_balance_bf + transfer_amt
-    assert cli.ibc_denom_hash(path) == denom_hash
-    cli2.balance(escrow_addr, denom=denom) == transfer_amt
 
     # mantra-canary-net-1 signer1 -> evm-canary-net-1 community eth addr with 5uom
-    parts = path.rsplit("/", 1)
-    path = f"{parts[0]}/{DEFAULT_DENOM}"
+    path = f"{port}/{channel}/{DEFAULT_DENOM}"
     denom_hash = hashlib.sha256(path.encode()).hexdigest().upper()
     dst_denom = f"ibc/{denom_hash}"
-    amount = 5
-    rsp = cli.ibc_transfer(
+    amt = 5
+    assert_ibc_transfer(
+        cli,
+        cli2,
+        addr_signer1,
         community,
-        f"{amount}{DEFAULT_DENOM}",
-        "channel-0",
-        from_=addr_signer1,
+        amt,
+        dst_denom,
     )
-    assert rsp["code"] == 0, rsp["raw_log"]
-    community_balance_bf = cli2.balance(addr_community, dst_denom)
-    community_balance = wait_for_balance_change(
-        cli2, addr_community, dst_denom, community_balance_bf
-    )
-    assert community_balance == community_balance_bf + amount

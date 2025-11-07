@@ -11,7 +11,7 @@
     price: 0.1,
   },
   event_source: {
-    batch_delay: '5000ms',
+    batch_delay: '500ms',
   },
   extension_options: [{
     type: 'cosmos_evm_dynamic_fee_v1',
