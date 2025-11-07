@@ -369,35 +369,3 @@ class CosmosCLI(PystarportCosmosCLI):
         if rsp.get("code") == 0:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
-
-    def grant_fee_allowance(self, granter, grantee, **kwargs):
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "feegrant",
-                "grant",
-                granter,
-                grantee,
-                "-y",
-                **(self.get_kwargs_with_gas() | kwargs),
-            )
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def revoke_fee_grant(self, granter, grantee, **kwargs):
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "feegrant",
-                "revoke",
-                granter,
-                grantee,
-                "-y",
-                **(self.get_kwargs_with_gas() | kwargs),
-            )
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp

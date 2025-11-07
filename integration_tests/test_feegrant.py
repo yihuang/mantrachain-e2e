@@ -33,7 +33,9 @@ def test_fee_allowance_flow(mantra):
     assert rsp["code"] == 0, rsp["raw_log"]
     fee = find_fee(rsp)
 
-    rsp = cli.grant_fee_allowance(granter, grantee, spend_limit=f"{fee_grant_spend_limit}{DEFAULT_DENOM}")
+    rsp = cli.grant_fee_allowance(
+        granter, grantee, spend_limit=f"{fee_grant_spend_limit}{DEFAULT_DENOM}"
+    )
     assert rsp["code"] == 0, rsp["raw_log"]
     fee += find_fee(rsp)
 
