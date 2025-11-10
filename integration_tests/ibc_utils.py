@@ -295,7 +295,6 @@ def assert_ibc_evmd_flow(ibc: IBCNetwork, denom=DEFAULT_DENOM) -> tuple[str, str
     print(f"mantra community -> evm eth_community {amt3}{denom}")
     denom_hash = ibc_denom_hash(f"{port}/{channel}/{denom}")
     dst_denom3 = f"ibc/{denom_hash}"
-    print("mm-dst_denom3", dst_denom3)
     assert_ibc_transfer(
         ibc.hermes,
         cli,
@@ -311,7 +310,6 @@ def assert_ibc_evmd_flow(ibc: IBCNetwork, denom=DEFAULT_DENOM) -> tuple[str, str
     print(f"evm community -> mantra eth_community {amt4}{evmd_denom}")
     denom_hash = ibc_denom_hash(f"{port}/{channel}/{evmd_denom}")
     dst_denom4 = f"ibc/{denom_hash}"
-    print("mm-dst_denom4", dst_denom4)
     assert_ibc_transfer(
         ibc.hermes,
         cli2,
