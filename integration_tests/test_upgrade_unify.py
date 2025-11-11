@@ -2,7 +2,6 @@ import time
 
 import pytest
 from eth_contract.erc20 import ERC20
-from pystarport.utils import wait_for_new_blocks
 
 from .network import Mantra
 from .upgrade_utils import (
@@ -43,9 +42,6 @@ def custom_mantra(request, tmp_path_factory):
 async def exec(c, tmp_path):
     cli = c.cosmos_cli()
     community = "community"
-    nodes = [f"mantra-canary-net-1-node{i}" for i in range(3)]
-    c.supervisorctl("start", *nodes)
-    wait_for_new_blocks(cli, 1)
 
     addr_a = cli.address(community)
     subdenom = f"admin{time.time()}"
