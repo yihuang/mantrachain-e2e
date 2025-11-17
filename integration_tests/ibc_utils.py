@@ -285,7 +285,7 @@ def assert_dynamic_fee(cli):
     criteria = "message.action='/ibc.core.channel.v1.MsgChannelOpenInit'"
     tx = cli.tx_search(criteria)["txs"][0]
     events = parse_events_rpc(tx["events"])
-    fee = int(events["tx"]["fee"].removesuffix(DEFAULT_DENOM))
+    fee = int(parse_amount(events["tx"]["fee"]))
     gas = int(tx["gas_wanted"])
     # the effective fee is decided by the max_priority_fee (base fee is zero)
     # rather than the normal gas price
@@ -335,7 +335,9 @@ async def assert_ibc_transfer_flow(
         denom=chain2_denom,
         prefix=chain2_prefix,
     )
-    assert_dynamic_fee(cli1)
+    # skip check when upgrade since extension_options changed
+    if not upgrade_cb:
+        assert_dynamic_fee(cli1)
     assert_dup_events(cli1)
     ibc_erc20_addr = ibc_denom_address(dst_denom)
     assert (await ERC20.fns.decimals().call(w3, to=ibc_erc20_addr)) == 0
