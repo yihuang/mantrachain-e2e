@@ -6,14 +6,13 @@ let
   platform = common.platform;
   releases = {
     genesis = pkgs.callPackage ../../nix/v6.1.1/default.nix {};
-    "v7.0.0-rc0" = pkgs.callPackage ../../nix/v7.0.0-rc0/default.nix {};
   } // (
     pkgs.lib.optionalAttrs includeMantrachaind {
-      "v7.0.0-rc1" = pkgs.mantrachaind;
+      "v7.0.0-rc2" = pkgs.mantrachaind;
     }
   ) // (
     pkgs.lib.optionalAttrs (!includeMantrachaind) {
-      "v7.0.0-rc1" = pkgs.writeShellScriptBin "mantrachaind" ''
+      "v7.0.0-rc2" = pkgs.writeShellScriptBin "mantrachaind" ''
         exec mantrachaind "$@"
       '';
     }

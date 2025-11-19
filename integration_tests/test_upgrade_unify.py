@@ -7,7 +7,6 @@ from eth_contract.erc20 import ERC20
 from eth_contract.utils import send_transaction
 from eth_contract.weth import WETH
 from eth_utils import to_checksum_address
-from pystarport.utils import wait_for_new_blocks
 
 from .network import Mantra
 from .upgrade_utils import (
@@ -277,7 +276,7 @@ async def exec(c, tmp_path):
     assert rsp["code"] == 0, rsp["raw_log"]
 
     target_height = cli.block_height() + 15
-    cli = do_upgrade(c, "v7.0.0-rc0", target_height, denom=LEGACY_DENOM)
+    cli = do_upgrade(c, "v7.0.0-rc2", target_height, denom=LEGACY_DENOM)
 
     # delegate after migration
     PRECOMPILE = Contract(build_contract("StakingI")["abi"])
@@ -298,8 +297,8 @@ async def exec(c, tmp_path):
     )
 
     # after migration
-    assert await weth.fns.name().call(async_w3, to=wom) == "WMANTRA Token"
-    assert await weth.fns.symbol().call(async_w3, to=wom) == "WMANTRA"
+    assert await weth.fns.name().call(async_w3, to=wom) == "Wrapped MANTRA"
+    assert await weth.fns.symbol().call(async_w3, to=wom) == "wMANTRA"
     assert await weth.fns.decimals().call(async_w3, to=wom) == 18
     assert await weth.fns.balanceOf(deployer.address).call(async_w3, to=wom) == 4000
     assert (
@@ -343,16 +342,6 @@ async def exec(c, tmp_path):
         "distribution"
     ]
     assert "uom" not in json.dumps(distribution)
-
-    nodes = [f"mantra-canary-net-1-node{i}" for i in range(3)]
-    c.supervisorctl("start", *nodes)
-    wait_for_new_blocks(cli, 1)
-
-    target_height = cli.block_height() + 15
-    cli = do_upgrade(c, "v7.0.0-rc1", target_height, min_deposit=1 * SCALE_FACTOR)
-
-    assert await weth.fns.name().call(async_w3, to=wom) == "Wrapped MANTRA"
-    assert await weth.fns.symbol().call(async_w3, to=wom) == "wMANTRA"
 
 
 async def test_cosmovisor_upgrade(custom_mantra: Mantra, tmp_path):
