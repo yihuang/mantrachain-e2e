@@ -31,7 +31,7 @@ contract TestStaking {
     function callUndelegate(
         string memory validatorAddress,
         uint256 amount
-    ) public payable returns (bool) {
+    ) public returns (bool) {
         require(account == msg.sender, "unauthorized caller");
         (bool success, bytes memory data) = precompile.call(
             abi.encodeWithSignature(
@@ -51,7 +51,7 @@ contract TestStaking {
         string memory validatorSrcAddress,
         string memory validatorDstAddress,
         uint256 amount
-    ) public payable returns (bool) {
+    ) public returns (bool) {
         require(account != address(0), "no delegation exists");
         require(account == msg.sender, "unauthorized caller");
         (bool success, bytes memory data) = precompile.call(

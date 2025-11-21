@@ -107,7 +107,7 @@ async def undelegate(w3, acct, validator, amt, to):
             w3, acct, to=to, gas=gas
         )
     return await TEST_STAKING.fns.callUndelegate(validator, amt).transact(
-        w3, acct, to=to, gas=gas, value=amt * WEI_PER_DENOM
+        w3, acct, to=to, gas=gas
     )
 
 
@@ -119,7 +119,7 @@ async def redelegate(w3, acct, val_ops, amt, to):
     else:
         return await TEST_STAKING.fns.callRedelegate(
             val_ops[0], val_ops[1], amt
-        ).transact(w3, acct, to=to, gas=gas, value=amt * WEI_PER_DENOM)
+        ).transact(w3, acct, to=to, gas=gas)
 
 
 async def test_staking_delegate(mantra, connect_mantra, tmp_path):
@@ -182,16 +182,15 @@ async def test_staking_unbond(mantra, connect_mantra, tmp_path):
             assert balance == balance_bf - amt * WEI_PER_DENOM - fee
 
     unbonded_bf = cli.staking_pool(bonded=False)
-    unbonded_amt = 2
+    unbond_amt = 2
 
     for to, caller in [
         (STAKING, acct.address),
         (test_staking, test_staking),
     ]:
-        balance_bf = await w3.eth.get_balance(acct.address) + await w3.eth.get_balance(
-            test_staking
-        )
-        res = await undelegate(w3, acct, val_ops[0], unbonded_amt, to=to)
+        balance_user_bf = await w3.eth.get_balance(acct.address)
+        balance_contract_bf = await w3.eth.get_balance(test_staking)
+        res = await undelegate(w3, acct, val_ops[0], unbond_amt, to=to)
         assert res.status == 1
         assert res.logs[0].topics == [
             PRECOMPILE.events.Unbond.topic,
@@ -199,7 +198,7 @@ async def test_staking_unbond(mantra, connect_mantra, tmp_path):
             address_to_bytes32(cli.debug_addr(val_ops[0], bech="hex")),
         ]
         fee = res["gasUsed"] * res["effectiveGasPrice"]
-        assert cli.staking_pool(bonded=False) == unbonded_bf + unbonded_amt
+        assert cli.staking_pool(bonded=False) == unbonded_bf + unbond_amt
         blk = res["blockNumber"]
         rsp = requests.get(f"{cli.node_rpc_http}/block_results?height={blk}").json()
         rsp = next((tx for tx in rsp["result"]["txs_results"] if tx["code"] == 0), None)
@@ -209,10 +208,14 @@ async def test_staking_unbond(mantra, connect_mantra, tmp_path):
         wait_for_block_time(
             cli, isoparse(data["completion_time"]) + timedelta(seconds=1)
         )
-        balance = await w3.eth.get_balance(acct.address) + await w3.eth.get_balance(
-            test_staking
-        )
-        assert balance == balance_bf + unbonded_amt * WEI_PER_DENOM - fee
+        balance_user_af = await w3.eth.get_balance(acct.address)
+        balance_contract_af = await w3.eth.get_balance(test_staking)
+        unbond_diff = unbond_amt * WEI_PER_DENOM
+        if to == STAKING:
+            assert balance_user_af == balance_user_bf - fee + unbond_diff
+        else:
+            assert balance_user_af == balance_user_bf - fee
+            assert balance_contract_af == balance_contract_bf + unbond_diff
 
 
 @pytest.mark.connect
