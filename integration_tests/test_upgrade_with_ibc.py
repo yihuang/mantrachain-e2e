@@ -1,6 +1,3 @@
-import shutil
-import stat
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -11,7 +8,13 @@ from .ibc_utils import (
     prepare_network,
 )
 from .network import Mantra
-from .upgrade_utils import LEGACY_DENOM, cleanup_upgrades_folder, do_upgrade, post_init
+from .upgrade_utils import (
+    LEGACY_DENOM,
+    build_upgrade_package,
+    cleanup_upgrades_folder,
+    do_upgrade,
+    post_init,
+)
 from .utils import (
     CMD,
     DEFAULT_DENOM,
@@ -25,25 +28,12 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.skipped]
 @pytest.fixture(scope="module")
 def custom_mantra(request, tmp_path_factory):
     chain = request.config.getoption("chain_config")
-    nix_name = "upgrade-test-package-ibc"
-    configdir = Path(__file__).parent
     name = "cosmovisor_with_ibc"
     path = tmp_path_factory.mktemp(name)
-    cmd = [
-        "nix-build",
-        configdir / f"configs/{nix_name}.nix",
-    ]
-    print(*cmd)
-    subprocess.run(cmd, check=True)
-
-    # copy the content so the new directory is writable.
+    configdir = Path(__file__).parent
     upgrades = path / "upgrades"
-    shutil.copytree("./result", upgrades)
-    mod = stat.S_IRWXU
-    upgrades.chmod(mod)
-    for d in upgrades.iterdir():
-        d.chmod(mod)
-
+    nix_name = "upgrade-test-package-ibc"
+    build_upgrade_package(upgrades, configdir / f"configs/{nix_name}.nix")
     binary = str(upgrades / f"genesis/bin/{CMD}")
     yield from prepare_network(
         path,

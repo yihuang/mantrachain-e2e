@@ -16,6 +16,7 @@ from .upgrade_utils import (
 from .utils import (
     ADDRS,
     CHAIN_ID,
+    SCALE_FACTOR,
     Greeter,
     call_with_retry,
     update_node_cmd,
@@ -55,6 +56,11 @@ def exec(c):
 
     target_height0 = cli.block_height() + 15
     cli = do_upgrade(c, "v7.0.0-rc2", target_height0, denom=LEGACY_DENOM)
+
+    target_height = cli.block_height() + 15
+    cli = do_upgrade(
+        c, "v7.0.0-rc2-supply", target_height, min_deposit=1 * SCALE_FACTOR
+    )
 
     grpc_node = 1
     api_port = ports.api_port(c.base_port(grpc_node))
