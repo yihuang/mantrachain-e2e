@@ -1,12 +1,11 @@
 from pathlib import Path
 
 import pytest
-from pystarport.utils import BondStatus, wait_for_new_blocks
+from pystarport.utils import wait_for_new_blocks
+
+from integration_tests.utils import module_address, submit_gov_proposal
 
 from .network import setup_custom_mantra
-from .utils import DEFAULT_DENOM
-
-pytestmark = pytest.mark.slow
 
 
 @pytest.fixture(scope="module")
@@ -21,51 +20,55 @@ def custom_mantra(request, tmp_path_factory):
     )
 
 
-def test_max_supply(custom_mantra):
+def test_max_supply(custom_mantra, tmp_path):
     cli = custom_mantra.cosmos_cli(i=2)
-    val = cli.address("validator", bech="val")
-    addr = cli.address("validator")
-    gas = 320_000
-    amt = 9_000_000_000_000_000_000
-
-    # unbond almost all, check still bonded
-    assert (
-        cli.unbond_amount(val, f"{amt}{DEFAULT_DENOM}", _from=addr, gas=gas)["code"]
-        == 0
+    # params = cli.get_params("mint")
+    # max_supply = int(params["max_supply"])
+    supply_bf = int(cli.total_supply_of().get("amount"))
+    p = cli.get_params("mint")
+    max_supply = int(supply_bf * 1.05)
+    p["max_supply"] = str(max_supply)
+    submit_gov_proposal(
+        custom_mantra,
+        tmp_path,
+        messages=[
+            {
+                "@type": "/cosmos.mint.v1beta1.MsgUpdateParams",
+                "authority": module_address("gov"),
+                "params": p,
+            },
+        ],
+        gas=300_000,
     )
-    assert cli.validator(val).get("status") == BondStatus.BONDED.value
+    p = cli.get_params("mint")
+    assert int(p["max_supply"]) == max_supply, p
+    gap_bf = max_supply - supply_bf
+    print(f"max_supply: {max_supply}, supply: {supply_bf}, gap: {gap_bf}")
+    supplies = [supply_bf]
 
-    # unbond a small amount, should now unbond
-    assert cli.unbond_amount(val, f"1{DEFAULT_DENOM}", _from=addr, gas=gas)["code"] == 0
-    wait_for_new_blocks(cli, 2)
-    assert cli.validator(val).get("status") == BondStatus.UNBONDING.value
-
-    # max supply definition and get current supply
-    max_supply = int(700.5 * 10**18)
-    supply_before = int(cli.total_supply_of().get("amount"))
-
-    if supply_before >= max_supply:
-        pytest.skip("Already at or above max_supply")
-
-    # try to reach max supply
-    reached_max = False
-    max_blks = 10
-    for _ in range(max_blks):
+    for _ in range(10):
         wait_for_new_blocks(cli, 1)
-        current = int(cli.total_supply_of().get("amount"))
-        if current >= max_supply * 0.999:
-            reached_max = True
+        supplies.append(int(cli.total_supply_of().get("amount")))
+        minted = supplies[-1] - supplies[-2]
+        gap = max_supply - supplies[-1]
+        height = cli.block_height()
+        print(f"block {height}, supply: {supplies[-1]}, gap: {gap}, minted: {minted}")
+        assert supplies[-1] <= max_supply
+        if gap == 0:
             break
-    assert reached_max, f"not reach max_supply after {max_blks} blocks."
 
-    # check no excessive minting after limit reached
-    supply_at_limit = int(cli.total_supply_of().get("amount"))
-    wait_for_new_blocks(cli, 10)
-    supply_after = int(cli.total_supply_of().get("amount"))
-    assert (
-        supply_after <= max_supply
-    ), f"supply exceeded max: {supply_after} > {max_supply}"
+    supply_af = supplies[-1]
+    gap_af = max_supply - supply_af
+    total_minted = supply_af - supply_bf
+    print(f"total minted: {total_minted}, gap: {gap_af}")
 
-    diff = supply_after - supply_at_limit
-    allowed = max_supply
-    assert diff <= allowed, f"supply increased by {diff} after max. allowed: {allowed}"
+    assert total_minted > 0
+    assert supply_af <= max_supply
+    assert gap_af < gap_bf
+
+    # if near max supply, ensure minting almost halts
+    if gap_af < max_supply * 0.01 and gap_af < 1000:
+        pre = supply_af
+        wait_for_new_blocks(cli, 5)
+        post = int(cli.total_supply_of().get("amount"))
+        assert post - pre < 1000

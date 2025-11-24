@@ -6,7 +6,10 @@ config {
       app_state+: {
         mint+: {
           params+: {
-            max_supply: '700500000000000000000',
+            inflation_rate_change: '0.9',
+            inflation_max: '0.9',
+            inflation_min: '0.9',
+            blocks_per_year: '300',
           },
         },
       },
