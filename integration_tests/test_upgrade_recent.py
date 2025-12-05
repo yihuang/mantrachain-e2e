@@ -22,7 +22,6 @@ from .utils import (
     update_node_cmd,
 )
 
-pytest.skip("wait grpc proxy", allow_module_level=True)
 pytestmark = [pytest.mark.slow, pytest.mark.skipped]
 
 
@@ -41,6 +40,14 @@ def custom_mantra(request, tmp_path_factory):
 
 def exec(c):
     cli = c.cosmos_cli()
+    delegate_amt = 20_000_000  # 20 OM
+    coin = f"{delegate_amt}{LEGACY_DENOM}"
+    gas_prices = f"1{LEGACY_DENOM}"
+    val = cli.validators()[0]["operator_address"]
+    signer1 = cli.address("signer1")
+    rsp = cli.delegate_amount(val, coin, _from=signer1, gas_prices=gas_prices)
+    assert rsp["code"] == 0, rsp["raw_log"]
+
     w3 = c.w3
     community = ADDRS["community"]
     greeter = Greeter("Greeter")
@@ -57,6 +64,14 @@ def exec(c):
     target_height0 = cli.block_height() + 15
     cli = do_upgrade(c, "v7.0.0-rc2", target_height0, denom=LEGACY_DENOM)
 
+    rewards_bf = cli.distribution_rewards(signer1, height=target_height0 - 1)
+    rewards_af = cli.distribution_rewards(signer1)
+    diff = rewards_af / (rewards_bf * SCALE_FACTOR)
+    assert diff > 1 and diff < 2, "rewards should increase"
+
+    rsp = cli.withdraw_rewards(val, from_=signer1)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    return
     target_height = cli.block_height() + 15
     cli = do_upgrade(
         c, "v7.0.0-rc2-supply", target_height, min_deposit=1 * SCALE_FACTOR
