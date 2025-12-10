@@ -18,8 +18,8 @@ from .utils import (
     CHAIN_ID,
     SCALE_FACTOR,
     Greeter,
+    assert_withdraw_rewards,
     call_with_retry,
-    eth_to_bech32,
     update_node_cmd,
 )
 
@@ -41,44 +41,27 @@ def custom_mantra(request, tmp_path_factory):
 
 def exec(c):
     cli = c.cosmos_cli()
-    delegate_amt = 20_000_000  # 20 OM
-    coin = f"{delegate_amt}{LEGACY_DENOM}"
-    gas_prices = f"1{LEGACY_DENOM}"
-    val = cli.validators()[0]["operator_address"]
-    signer1 = cli.address("signer1")
-    validator = eth_to_bech32(cli.debug_addr(val, bech="hex"))
-
-    rsp = cli.delegate_amount(val, coin, _from=validator, gas_prices=gas_prices)
-    assert rsp["code"] == 0, rsp["raw_log"]
-    rsp = cli.delegate_amount(val, coin, _from=signer1, gas_prices=gas_prices)
-    assert rsp["code"] == 0, rsp["raw_log"]
-    rsp = cli.delegate_amount(val, coin, _from=validator, gas_prices=gas_prices)
-    assert rsp["code"] == 0, rsp["raw_log"]
-
+    grpc_cmd = cli.raw.cmd
     w3 = c.w3
     community = ADDRS["community"]
     greeter = Greeter("Greeter")
     greeter.deploy(w3)
     old_height = cli.block_height()
-
     balance_bf = w3.eth.get_balance(community, block_identifier=old_height)
+    gas_prices = f"1{LEGACY_DENOM}"
 
-    wait_for_new_blocks(cli, 1)
-    grpc_cmd = cli.raw.cmd
-    c.supervisorctl("stop", f"{CHAIN_ID}-node1")
-    update_node_cmd(c.base_dir, grpc_cmd, 1, grpc_only=True)
+    def cb(cli):
+        wait_for_new_blocks(cli, 10)
+        c.supervisorctl("stop", f"{CHAIN_ID}-node1")
+        update_node_cmd(c.base_dir, grpc_cmd, 1, grpc_only=True)
 
-    target_height0 = cli.block_height() + 150
-    cli = do_upgrade(c, "v7.0.0-rc2", target_height0, denom=LEGACY_DENOM)
+        target_height0 = cli.block_height() + 150
+        cli = do_upgrade(c, "v7.0.0-rc4", target_height0, denom=LEGACY_DENOM)
+        return cli, target_height0
 
-    rewards_bf = cli.distribution_rewards(signer1, height=target_height0 - 1)
-    wait_for_new_blocks(cli, 20)
-    rewards_af = cli.distribution_rewards(signer1)
-    diff = rewards_af / (rewards_bf * SCALE_FACTOR)
-    assert diff >= 1 and diff < 2, "rewards should increase"
-
-    rsp = cli.withdraw_rewards(val, from_=signer1)
-    assert rsp["code"] == 0, rsp["raw_log"]
+    target_height0 = assert_withdraw_rewards(
+        c, cb, denom=LEGACY_DENOM, scale=SCALE_FACTOR, gas_prices=gas_prices
+    )
     return
 
     target_height = cli.block_height() + 15
