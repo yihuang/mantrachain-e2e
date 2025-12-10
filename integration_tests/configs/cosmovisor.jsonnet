@@ -3,6 +3,11 @@ local legacy_evm_denom = 'uom';
 
 config {
   'mantra-canary-net-1'+: {
+    config: {
+      consensus: {
+        timeout_commit: '500ms',
+      },
+    },
     'app-config'+: {
       evm+: {
         'evm-chain-id': 5887,
