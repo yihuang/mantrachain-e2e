@@ -129,7 +129,6 @@ async def test_withdraw_rewards(mantra, connect_mantra, tmp_path):
         await w3.eth.get_balance(signer2_eth, block_identifier=height - 1),
         await w3.eth.get_balance(signer2_eth, block_identifier=height),
     ]
-    print("mm-balances:", int(balances[1] - balances[0]))
     assert int(balances[1] - balances[0]) > 0
     # assert int(stake * (end - start)) == int(balances[1] - balances[0])
 
