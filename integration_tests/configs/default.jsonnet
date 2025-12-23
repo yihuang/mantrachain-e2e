@@ -15,7 +15,7 @@ local coin_type = if std.objectHas(chain, 'coin-type') && chain['coin-type'] != 
         version: 'v1',
       },
       consensus: {
-        timeout_commit: '1s',
+        timeout_commit: '500ms',
       },
     },
     'app-config': {
