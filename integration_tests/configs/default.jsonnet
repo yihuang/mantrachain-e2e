@@ -114,7 +114,7 @@ local coin_type = if std.objectHas(chain, 'coin-type') && chain['coin-type'] != 
               '0x0000000000000000000000000000000000000801',
               '0x0000000000000000000000000000000000000805',
               '0x0000000000000000000000000000000000000807',
-            ],
+            ] + (if std.objectHas(chain.evm, 'params') && std.objectHas(chain.evm.params, 'active_static_precompiles') then chain.evm.params.active_static_precompiles else []),
           },
         },
         erc20: {
@@ -154,7 +154,7 @@ local coin_type = if std.objectHas(chain, 'coin-type') && chain['coin-type'] != 
         },
         circuit: {
           disabled_type_urls: [
-            "/cosmos.distribution.v1beta1.MsgDepositValidatorRewardsPool",
+            '/cosmos.distribution.v1beta1.MsgDepositValidatorRewardsPool',
           ],
         },
         crisis: {
@@ -191,7 +191,11 @@ local coin_type = if std.objectHas(chain, 'coin-type') && chain['coin-type'] != 
             symbol: 'ATOKEN',
           }],
         },
-      },
+      } + (
+        if std.objectHas(chain, 'document') then {
+          document: chain.document,
+        } else {}
+      ),
     },
   },
 }
