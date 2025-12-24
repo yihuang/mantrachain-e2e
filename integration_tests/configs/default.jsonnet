@@ -110,6 +110,8 @@ local coin_type = if std.objectHas(chain, 'coin-type') && chain['coin-type'] != 
           params+: {
             evm_denom: chain.evm_denom,
             active_static_precompiles: [
+              '0x0000000000000000000000000000000000000100',
+              '0x0000000000000000000000000000000000000400',
               '0x0000000000000000000000000000000000000800',
               '0x0000000000000000000000000000000000000801',
               '0x0000000000000000000000000000000000000805',
@@ -192,8 +194,8 @@ local coin_type = if std.objectHas(chain, 'coin-type') && chain['coin-type'] != 
           }],
         },
       } + (
-        if std.objectHas(chain, 'document') then {
-          document: chain.document,
+        if std.objectHas(chain, 'anchoring') then {
+          anchoring: chain.anchoring,
         } else {}
       ),
     },
