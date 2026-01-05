@@ -128,6 +128,15 @@ class CosmosCLI(PystarportCosmosCLI):
                 return line.split()[-1]
         return eth_addr
 
+    def debug_pubkey(self, pubkey):
+        output = self.raw("debug", "pubkey", pubkey).decode().strip().split("\n")
+        prefix = "Address (EIP-55):"
+        for line in output:
+            if line.startswith(prefix):
+                addr = line.split()[-1]
+                return addr[2:] if addr.startswith("0x") else addr
+        return pubkey
+
     def create_tokenfactory_denom(self, subdenom, generate_only=False, **kwargs):
         rsp = json.loads(
             self.raw(
