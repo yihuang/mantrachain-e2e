@@ -1,7 +1,6 @@
 import datetime
 import json
 import shutil
-import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -14,25 +13,17 @@ from .ibc_utils import IBCNetwork, create_channel, create_connection, ibc_denom_
 from .network import Hermes, Mantra, setup_custom_mantra
 from .utils import (
     ADDRS,
-    CHAIN_ID,
     CMD,
     DEFAULT_DENOM,
     DEFAULT_GAS_AMT,
     KEYS,
     bech32_to_eth,
-    find_log_event_attrs,
+    create_consumer_chain,
     send_transaction,
-    update_node_cmd,
+    update_consumer_chain,
 )
 
 pytestmark = pytest.mark.ccv
-
-
-def post_init(broken_binary):
-    def inner(path, base_port, config, genesis):
-        update_node_cmd(path / CHAIN_ID, broken_binary, 1)
-
-    return inner
 
 
 @pytest.fixture(scope="module")
@@ -44,21 +35,13 @@ def ibc(request, tmp_path_factory):
     name = "configs/ibc_inveniamd.jsonnet"
     path = tmp_path_factory.mktemp("ibc_inveniamd")
     b_chain = "inveniam-canary-net-1"
-    cmd = [
-        "nix-build",
-        "--no-out-link",
-        Path(__file__).parent / "configs/provider.nix",
-    ]
-    print(*cmd)
-    binary = Path(subprocess.check_output(cmd).strip().decode()) / f"bin/{CMD}"
     with contextmanager(setup_custom_mantra)(
         path,
         27400,
         Path(__file__).parent / name,
         relayer=cluster.Relayer.HERMES.value,
-        post_init=post_init(binary),
         chain=chain,
-        chain_binary=f"{b_chain_cmd},{str(binary)}",
+        chain_binary=f"{b_chain_cmd},{CMD}",
     ) as ibc1:
         num_nodes = 3
         ibc2 = Mantra(ibc1.base_dir.parent / b_chain, chain_binary=b_chain_cmd)
@@ -68,72 +51,29 @@ def ibc(request, tmp_path_factory):
         # wait for grpc ready
         wait_for_port(ports.grpc_port(ibc1.base_port(0)))
         wait_for_new_blocks(cli, 1)
-        now = datetime.datetime.now(datetime.UTC)
-        dummy_hash = "2D5C2110941DA54BE07CBB9FACD7E4A2E3253E79BE7BE3E5A1A7BDA518BAA4BE"
-        msg = {
-            "chain_id": b_chain,
-            "metadata": {
-                "name": "name",
-                "description": "description",
-                "metadata": "metadata",
-            },
-            "initialization_parameters": {
-                "initial_height": {"revision_number": 1, "revision_height": 1},
-                "genesis_hash": dummy_hash,
-                "binary_hash": dummy_hash,
-                "spawn_time": now.isoformat().replace("+00:00", "Z"),
-                "ccv_timeout_period": 2419200000000000,
-                "unbonding_period": 80000000000,
-                "transfer_timeout_period": 60000000000,
-                "consumer_redistribution_fraction": "0.75",
-                "blocks_per_distribution_transmission": 10,
-                "historical_entries": 1000,
-                "distribution_transmission_channel": "",
-            },
-            "power_shaping_parameters": {"top_N": 0},
-        }
-        msg_path = path / "create_msg.json"
-        msg_path.write_text(json.dumps(msg))
-        rsp = cli.provider_create_consumer(msg_path, from_="validator")
-        assert rsp["code"] == 0, rsp["raw_log"]
-        data = find_log_event_attrs(
-            rsp["events"], "create_consumer", lambda attrs: "consumer_id" in attrs
-        )
-        consumer_id = data["consumer_id"]
+
+        consumer_id = create_consumer_chain(cli, b_chain, from_="validator")
+
         for i in range(num_nodes):
             rsp = ibc1.cosmos_cli(i=i).provider_opt_in(consumer_id, from_="validator")
             assert rsp["code"] == 0, rsp["raw_log"]
 
         authority = cli.get_params("marketmap").get("admin")
-        now = datetime.datetime.now(datetime.UTC)
         port = "transfer"
         channel = "channel-1"
         denom = "anvnm"
         denom_hash = ibc_denom_hash(f"{port}/{channel}/{denom}")
         owner_address = cli.address("validator")
-        update_msg = {
-            "consumer_id": consumer_id,
-            "owner_address": owner_address,
-            "new_owner_address": authority,
-            "metadata": msg["metadata"],
-            "initialization_parameters": msg["initialization_parameters"]
-            | {"spawn_time": now.isoformat().replace("+00:00", "Z")},
-            "power_shaping_parameters": msg["power_shaping_parameters"]
-            | {
-                "validators_power_cap": 0,
-                "validator_set_cap": 50,
-                "allowlist": [],
-                "denylist": [],
-                "min_stake": 1000,
-                "allow_inactive_vals": True,
-                "prioritylist": [],
-            },
-            "allowlisted_reward_denoms": {"denoms": [f"ibc/{denom_hash}"]},
-        }
-        msg_path = path / "update_msg.json"
-        msg_path.write_text(json.dumps(update_msg))
-        rsp = cli.provider_update_consumer(msg_path, from_="validator")
-        assert rsp["code"] == 0, rsp["raw_log"]
+
+        update_consumer_chain(
+            cli,
+            consumer_id,
+            path,
+            owner_address,
+            authority,
+            allowlisted_reward_denoms={"denoms": [f"ibc/{denom_hash}"]},
+            from_="validator",
+        )
 
         wait_for_new_blocks(cli, 1)
 
