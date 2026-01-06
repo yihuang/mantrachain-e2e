@@ -935,10 +935,10 @@ def do_multisig(cli, tmp_path, signer1_name, signer2_name, multisig_name):
     res = cli.account_by_num(acc["account"]["value"]["account_number"])
     assert res["account_address"] == multi_addr
 
-    m_txt = tmp_path / "m.txt"
-    p1_txt = tmp_path / "p1.txt"
-    p2_txt = tmp_path / "p2.txt"
-    tx_txt = tmp_path / "tx.txt"
+    m_txt = tmp_path / "m.json"
+    p1_txt = tmp_path / "p1.json"
+    p2_txt = tmp_path / "p2.json"
+    tx_txt = tmp_path / "tx.json"
     amt = 1
     multi_tx = cli.transfer(
         multi_addr,
