@@ -89,7 +89,8 @@ async def deploy_erc20_wrapper(w3):
 #         Call3(bank, data=BankMethod.DECIMALS.args(denom.encode())),
 #         Call3(bank, data=BankMethod.TOTAL_SUPPLY.args(denom.encode())),
 #         Call3(
-#             bank, data=BankMethod.BALANCE_OF.args(to_bytes(hexstr=user), denom.encode())
+#             bank,
+#             data=BankMethod.BALANCE_OF.args(to_bytes(hexstr=user), denom.encode()),
 #         ),
 #     ]
 #     results = await MULTICALL3.fns.aggregate3(calls).call(w3)
