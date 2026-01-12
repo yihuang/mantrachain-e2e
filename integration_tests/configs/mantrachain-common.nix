@@ -15,60 +15,28 @@ let
         linux-amd64 = "sha256-gExKEcM9CyUimbuBSCz2YL7YuiFyBUmf3hbYJVfB7XQ=";
       };
     };
-    "v5.0.0-rc0" = {
-      filename = "mantrachaind-5.0.0-rc0-${platform}.tar.gz";
+    "v5.0.0" = {
+      filename = "mantrachaind-5.0.0-${platform}.tar.gz";
       sha256 = {
-        darwin-amd64 = "sha256-FyUgtoQVwsO2q3/3uZ6D+TeVR3DCmqBEubveXtzLkEo=";
-        linux-arm64 = "sha256-sSXFN2gHWLUb6wn0No9r23ty6bOta2iebrwBnAyGRyM=";
-        linux-amd64 = "sha256-sSXFN2gHWLUb6wn0No9r23ty6bOta2iebrwBnAyGRyM=";
+        darwin-amd64 = "sha256-PUXb9BG6/Dao7fvC0btOtPJhGAMDi74P6sG7zkkzKQY=";
+        linux-arm64 = "sha256-2kyy5wegogsWHD4ntI+oFxTTu0ATq2iLPxJ8ahUjejY=";
+        linux-amd64 = "sha256-2kyy5wegogsWHD4ntI+oFxTTu0ATq2iLPxJ8ahUjejY=";
       };
     };
-    "v5.0.0-rc1" = {
-      filename = "mantrachaind-5.0.0-rc1-${platform}.tar.gz";
+    "v6.0.0" = {
+      filename = "mantrachaind-6.0.0-${platform}.tar.gz";
       sha256 = {
-        darwin-amd64 = "sha256-G4JcV4VbKWleGaVlVKkNalbPF6Uoxkv4nsLlCW8nZkE=";
-        linux-arm64 = "sha256-5m9+fmA+/80SAYwwb9wgB1K5yz3nXcrc2OlYNMmdE/M=";
-        linux-amd64 = "sha256-5m9+fmA+/80SAYwwb9wgB1K5yz3nXcrc2OlYNMmdE/M=";
+        darwin-amd64 = "sha256-pNKlTiN/JgEL/2ZFuc0YJGLKWaem4xMIm6H/7PRByOc=";
+        linux-arm64 = "sha256-BOQFMjDk/aTqjr285/ipbWxQRps+l2Kq9Xn/sklICcY=";
+        linux-amd64 = "sha256-BOQFMjDk/aTqjr285/ipbWxQRps+l2Kq9Xn/sklICcY=";
       };
     };
-    "v5.0.0-rc2" = {
-      filename = "mantrachaind-5.0.0-rc2-${platform}.tar.gz";
+    "v6.1.0" = {
+      filename = "mantrachaind-6.1.0-${platform}.tar.gz";
       sha256 = {
-        darwin-amd64 = "sha256-wiJscoijqIrWb8AMALzj13YN54y62997fXqU8g3BjX0=";
-        linux-arm64 = "sha256-7FqreDBr85vgjCEr8WyCqOoG0Y9SbrVjVF3LCJuMoxw=";
-        linux-amd64 = "sha256-7FqreDBr85vgjCEr8WyCqOoG0Y9SbrVjVF3LCJuMoxw=";
-      };
-    };
-    "v5.0.0-rc3" = {
-      filename = "mantrachaind-5.0.0-rc3-${platform}.tar.gz";
-      sha256 = {
-        darwin-amd64 = "sha256-aR/eo296lnN2C6RkRlqAP79gVN7nPdM+ad/RTeSFOx0=";
-        linux-arm64 = "sha256-+n212FGcXI7TaBfdF1GyLsYe2Vz48GJ6Pm99K1ffDnc=";
-        linux-amd64 = "sha256-+n212FGcXI7TaBfdF1GyLsYe2Vz48GJ6Pm99K1ffDnc=";
-      };
-    };
-    "v5.0.0-rc4" = {
-      filename = "mantrachaind-5.0.0-rc4-${platform}.tar.gz";
-      sha256 = {
-        darwin-amd64 = "sha256-Tj0XrC/ncGnO0jK2f13TFPO11UxndSKqMe/9iNXJy34=";
-        linux-arm64 = "sha256-z98DR0hYLyR5HfzyMZREiYMS8eq0/8rrQjB53/KHnSQ=";
-        linux-amd64 = "sha256-z98DR0hYLyR5HfzyMZREiYMS8eq0/8rrQjB53/KHnSQ=";
-      };
-    };
-    "v5.0.0-rc5" = {
-      filename = "mantrachaind-5.0.0-rc5-${platform}.tar.gz";
-      sha256 = {
-        darwin-amd64 = "sha256-1UsVHyUlV7I5Lp4pefbVUjlOoRh6czEqRwzxPZR8FrM=";
-        linux-arm64 = "sha256-TonsORkOBzi5CgAZ3seDTlvhquLw9UvNfp3q1kMW4EE=";
-        linux-amd64 = "sha256-TonsORkOBzi5CgAZ3seDTlvhquLw9UvNfp3q1kMW4EE=";
-      };
-    };
-    "v5.0.0-rc6" = {
-      filename = "mantrachaind-5.0.0-rc6-${platform}.tar.gz";
-      sha256 = {
-        darwin-amd64 = "sha256-bXIZx9aF1+i1POq0Ah6UX4wgcsznXiQseF2jxdxK70U=";
-        linux-arm64 = "sha256-pxRSgZrQx/2brjpGZ1KmwBWN4dA5XjNXTbYm8jAedh8=";
-        linux-amd64 = "sha256-pxRSgZrQx/2brjpGZ1KmwBWN4dA5XjNXTbYm8jAedh8=";
+        darwin-amd64 = "sha256-nSeUd146p3ImWim+9ZTW0VJ+1tKeNU8jkf4aJ2+szms=";
+        linux-arm64 = "sha256-pFzbh7KUjM1UpvdpLQkReWTHwoBelKe3f4gjv2fcJrE=";
+        linux-amd64 = "sha256-pFzbh7KUjM1UpvdpLQkReWTHwoBelKe3f4gjv2fcJrE=";
       };
     };
   };
@@ -87,9 +55,27 @@ let
         cp mantrachaind $out/bin/
       '';
     };
+
+  localMantrachaindWrapper = pkgs.writeShellScriptBin "mantrachaind" ''
+    WRAPPER_DIR="$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")")"
+    REAL_MANTRACHAIND=""
+    IFS=':' read -ra PATH_ARRAY <<< "$PATH"
+    for dir in "''${PATH_ARRAY[@]}"; do
+      if [ "$dir" != "$WRAPPER_DIR" ] && [ -x "$dir/mantrachaind" ]; then
+        REAL_MANTRACHAIND="$dir/mantrachaind"
+        break
+      fi
+    done
+    if [ -z "$REAL_MANTRACHAIND" ] || [ ! -x "$REAL_MANTRACHAIND" ]; then
+      echo "Error: mantrachaind not found in PATH" >&2
+      exit 1
+    fi
+    exec "$REAL_MANTRACHAIND" "$@"
+  '';
 in
 {
   platform = platform;
   versionInfo = versionInfo;
   mkMantrachain = mkMantrachain;
+  localMantrachaindWrapper = localMantrachaindWrapper;
 }

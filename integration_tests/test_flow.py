@@ -5,8 +5,9 @@ import pytest
 from .network import ConnectMantra
 from .utils import (
     ADDRS,
-    DEFAULT_FEE,
-    WEI_PER_UOM,
+    DEFAULT_GAS,
+    DEFAULT_GAS_AMT,
+    WEI_PER_DENOM,
     assert_balance,
     derive_new_account,
     eth_to_bech32,
@@ -25,7 +26,7 @@ def test_connect_flow(connect_mantra, tmp_path):
 def test_flow(mantra, connect_mantra: ConnectMantra, tmp_path):
     community = "community"
     recover = "recover"
-    amt = 4000
+    amt = 16_000_000_000_000_000 // WEI_PER_DENOM
     # recover cosmos addr outside from node
     cli = connect_mantra.cosmos_cli(tmp_path)
     w3 = connect_mantra.w3
@@ -50,7 +51,7 @@ def test_flow(mantra, connect_mantra: ConnectMantra, tmp_path):
     addr_test1 = eth_to_bech32(acc_test1.address)
     balance_recover = get_balance(cli, recover)
     balance1 = get_balance(cli, addr_test1)
-    amt = amt - DEFAULT_FEE
+    amt = amt - int(DEFAULT_GAS_AMT * DEFAULT_GAS)
     fee = transfer_via_cosmos(cli, addr_recover, addr_test1, amt)
     assert assert_balance(cli, w3, recover) == balance_recover - amt - fee
     assert assert_balance(cli, w3, addr_test1) == balance1 + amt
@@ -60,7 +61,7 @@ def test_flow(mantra, connect_mantra: ConnectMantra, tmp_path):
     # send [1, 10**12] wei from test1 to test2 for tolerance check
     acc_test2 = derive_new_account(n=102)
     addr_test2 = eth_to_bech32(acc_test2.address)
-    gas_price = 11250000000
+    gas_price = 45000000000
     gas = 21000
     balance2_evm = w3.eth.get_balance(acc_test2.address)
     for value in [1, 10**12]:
@@ -77,7 +78,7 @@ def test_flow(mantra, connect_mantra: ConnectMantra, tmp_path):
         assert assert_balance(cli, w3, addr_test2, True) == balance2_evm
         fee_evm = receipt.gasUsed * receipt.effectiveGasPrice
         balance1_evm -= value + fee_evm
-        balance1 = balance1_evm // WEI_PER_UOM
+        balance1 = balance1_evm // WEI_PER_DENOM
         assert assert_balance(cli, w3, addr_test1) == balance1
         assert assert_balance(cli, w3, addr_test1, True) == balance1_evm
 

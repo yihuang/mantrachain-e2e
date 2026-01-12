@@ -7,6 +7,7 @@ import websockets
 from eth_utils import abi
 from hexbytes import HexBytes
 from pystarport import ports
+from pystarport.utils import wait_for_new_blocks, wait_for_port
 from web3 import Web3
 
 from .network import Mantra
@@ -17,8 +18,6 @@ from .utils import (
     send_raw_transactions,
     send_transaction,
     sign_transaction,
-    wait_for_new_blocks,
-    wait_for_port,
 )
 
 
@@ -106,8 +105,8 @@ def test_subscribe_basic(mantra: Mantra):
 
     async def transfer_test(c: Client, w3, contract, address):
         sub_id = await c.subscribe("logs", {"address": address})
-        to = ADDRS["community"]
-        _from = ADDRS["validator"]
+        to = ADDRS["signer1"]
+        _from = ADDRS["community"]
         total = 5
         topic = abi.event_signature_to_log_topic("Transfer(address,address,uint256)")
         for i in range(total):
@@ -134,11 +133,12 @@ def test_subscribe_basic(mantra: Mantra):
         iterations = 10000
         tx = contract.functions.test(iterations).build_transaction()
         raw_transactions = []
-        for key_from in KEYS.values():
-            signed = sign_transaction(w3, tx, key_from)
-            raw_transactions.append(signed.raw_transaction)
+        for name, key in KEYS.items():
+            if name != "reserve":
+                signed = sign_transaction(w3, tx, key)
+                raw_transactions.append(signed.raw_transaction)
         send_raw_transactions(w3, raw_transactions)
-        total = len(KEYS) * iterations
+        total = len(raw_transactions) * iterations
         msgs = [await c.recv_subscription(sub_id) for i in range(total)]
         assert len(msgs) == total
         assert all(msg["topics"] == [f"0x{TEST_EVENT_TOPIC.hex()}"] for msg in msgs)

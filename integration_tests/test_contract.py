@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 
 import pytest
+import web3
+from eth_abi import encode
 from eth_contract.contract import Contract, ContractFunction
 from eth_contract.create2 import create2_address
 from eth_contract.deploy_utils import (
@@ -31,8 +33,10 @@ from eth_contract.multicall3 import (
 )
 from eth_contract.utils import ZERO_ADDRESS, balance_of, get_initcode, send_transaction
 from eth_contract.weth import WETH, WETH9_ARTIFACT
+from eth_hash.auto import keccak
 from eth_utils import to_bytes
 from web3 import AsyncWeb3
+from web3._utils.contracts import encode_transaction_data
 from web3.types import TxParams
 
 from .utils import (
@@ -44,8 +48,9 @@ from .utils import (
     MockERC20_ARTIFACT,
     address_to_bytes32,
     assert_weth_flow,
+    build_and_deploy_contract_async,
     build_contract,
-    build_deploy_contract_async,
+    create_contract_transaction,
     w3_wait_for_new_blocks_async,
 )
 
@@ -101,7 +106,9 @@ async def test_flow(mantra, connect_mantra):
     height = await w3.eth.block_number
     await w3_wait_for_new_blocks_async(w3, 1)
 
-    blockhash = ContractFunction.from_abi("getBlockHash(uint256)(bytes32)")
+    blockhash = ContractFunction.from_abi(
+        "function getBlockHash(uint256) external returns (bytes32)"
+    )
     res = (await blockhash(height).call(w3, to=contract)).hex()
     blk = await w3.eth.get_block(height)
     assert res == blk.hash.hex(), res
@@ -248,7 +255,7 @@ async def test_7702(mantra, connect_mantra):
     w3: AsyncWeb3 = connect_mantra.async_w3
     await assert_contract_deployed(w3)
 
-    acct = ACCOUNTS["validator"]
+    acct = ACCOUNTS["signer2"]
     sponsor = ACCOUNTS["community"]
     multicall3 = MULTICALL3ROUTER
 
@@ -292,6 +299,7 @@ async def test_7702(mantra, connect_mantra):
     assert block["transactions"][0] == await w3.eth.get_transaction(
         receipt["transactionHash"]
     )
+    assert block["hash"] == block["transactions"][0]["blockHash"]
     receipts = await w3.eth.get_block_receipts(receipt["blockNumber"])
     assert receipts[0] == receipt
 
@@ -313,18 +321,16 @@ async def test_4337(mantra, connect_mantra):
     )
 
 
-# TODO: rm flaky and enlarge num after evm mempool is ready
-@pytest.mark.flaky(max_runs=5)
 async def test_deploy_multi(mantra):
     w3 = mantra.async_w3
     name = "community"
     key = KEYS[name]
     owner = ADDRS[name]
-    num = 2
+    num = 10
     res = build_contract("ERC20MinterBurnerDecimals")
     args_list = [(w3, res, (f"MyToken{i}", f"MTK{i}", 18), key) for i in range(num)]
     tx_results = await asyncio.gather(
-        *(build_deploy_contract_async(*args) for args in args_list)
+        *(create_contract_transaction(*args) for args in args_list)
     )
     nonce = await w3.eth.get_transaction_count(owner)
     txs = [{**tx, "nonce": nonce + i} for i, tx in enumerate(tx_results)]
@@ -340,14 +346,132 @@ async def test_deploy_multi(mantra):
     receipt = await ERC20.fns.mint(owner, total).transact(w3, owner, to=token)
     assert receipt.status == 1
     assert await ERC20.fns.balanceOf(owner).call(w3, to=token) == total
-    amt = 2
-    dec_amt = 1
-    inc = ContractFunction.from_abi("increaseAllowance(address,uint256)(bool)")
-    dec = ContractFunction.from_abi("decreaseAllowance(address,uint256)(bool)")
-    signer2 = ADDRS["signer2"]
-    await inc(signer2, amt).transact(w3, owner, to=token)
-    allowance = await ERC20.fns.allowance(owner, signer2).call(w3, to=token)
-    assert allowance == amt
-    await dec(signer2, dec_amt).transact(w3, owner, to=token)
-    allowance = await ERC20.fns.allowance(owner, signer2).call(w3, to=token)
-    assert allowance == amt - dec_amt
+
+
+async def test_upgrade(mantra):
+    w3 = mantra.async_w3
+    owner = ADDRS["community"]
+    token = await build_and_deploy_contract_async(w3, "MyToken")
+    proxy = await build_and_deploy_contract_async(
+        w3,
+        "ERC1967Proxy",
+        args=(
+            token.address,
+            encode_transaction_data(
+                w3, "initialize", token.abi, args=[owner], kwargs={}
+            ),
+        ),
+        dir="openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/proxy/ERC1967",  # noqa: E501
+    )
+    token2 = await build_and_deploy_contract_async(w3, "MyToken2")
+    proxy = w3.eth.contract(address=proxy.address, abi=token.abi)
+    hash = await proxy.functions.upgradeToAndCall(token2.address, b"").transact(
+        {"from": owner}
+    )
+    assert (await w3.eth.wait_for_transaction_receipt(hash)).status == 1
+    proxy = w3.eth.contract(address=proxy.address, abi=token2.abi)
+    assert (await proxy.functions.newFeature().call()) == "Upgraded!"
+
+
+async def test_replace_underpriced(mantra):
+    w3 = mantra.async_w3
+    owner = ACCOUNTS["community"].address
+    nonce = await w3.eth.get_transaction_count(owner)
+    gas_price = await w3.eth.gas_price
+    tx1 = {
+        "from": owner,
+        "to": ADDRS["signer1"],
+        "value": 1000,
+        "nonce": nonce,
+        "gasPrice": gas_price,
+    }
+    tx2 = {**tx1, "to": ADDRS["signer2"], "value": 2000}
+    hash1 = await w3.eth.send_transaction(tx1)
+    for _ in range(5):
+        pending = await w3.geth.txpool.content()
+        owner_pending = next(
+            (
+                addr
+                for addr in pending.get("pending", {})
+                if addr.lower() == owner.lower()
+            ),
+            None,
+        )
+        if owner_pending:
+            break
+        await asyncio.sleep(0.1)
+    else:
+        pytest.fail("no pending transaction in txpool")
+    pending_tx = pending["pending"][owner_pending][str(nonce)]
+    assert pending_tx["to"].lower() == ADDRS["signer1"].lower()
+    assert int(pending_tx["value"], 16) == 1000
+    with pytest.raises(
+        web3.exceptions.Web3RPCError, match="replacement transaction underpriced"
+    ):
+        await w3.eth.send_transaction(tx2)
+    await w3.eth.wait_for_transaction_receipt(hash1)
+
+
+async def test_storage_layout(mantra):
+    w3 = mantra.async_w3
+    acct = ACCOUNTS["validator"]
+
+    short = "Wrap Ether"
+    long = "Wrapped Ether Token for testing storage layout" * 32
+
+    artifact = build_contract("WETH9")
+
+    # deploy
+    receipt = await send_transaction(
+        w3, acct, data=get_initcode(artifact, short, long, 18)
+    )
+    contract = receipt["contractAddress"]
+
+    # deposit
+    await send_transaction(w3, acct, to=contract, value=1000)
+
+    # allowance
+    spender = ACCOUNTS["community"].address
+    await ERC20.fns.approve(spender, 500).transact(w3, acct, to=contract)
+
+    # name
+    slot = await w3.eth.get_storage_at(contract, 0)
+    # short string
+    assert slot[-1] % 2 == 0
+    length = slot[-1] // 2
+    name = slot[:length]
+    assert short == name.decode()
+
+    # symbol
+    slot = await w3.eth.get_storage_at(contract, 1)
+    # long string
+    assert slot[-1] % 2 == 1
+    length = int.from_bytes(slot) >> 1
+    assert len(long) == length
+
+    data_slots = (length + 31) // 32
+    data_begin = int.from_bytes(keccak((1).to_bytes(32, "big")), "big")
+    chunks = []
+    for i in range(data_slots):
+        s = await w3.eth.get_storage_at(contract, data_begin + i)
+        if i == data_slots - 1:
+            chunks.append(s[: length - i * 32])
+        else:
+            chunks.append(s)
+
+    assert long == b"".join(chunks).decode()
+
+    # decimals
+    decimals = await w3.eth.get_storage_at(contract, 2)
+    assert 18 == int.from_bytes(decimals)
+
+    # balances
+    slot = keccak(encode(["address", "uint256"], [acct.address, 3]))
+    balance = await w3.eth.get_storage_at(contract, slot)
+    assert int.from_bytes(balance, "big") == 1000
+
+    # allowances
+    tmp = keccak(encode(["address", "uint256"], [acct.address, 4]))
+    slot = keccak(encode(["address", "bytes32"], [spender, tmp]))
+    allowance = await w3.eth.get_storage_at(contract, slot)
+    assert int.from_bytes(allowance, "big") == 500

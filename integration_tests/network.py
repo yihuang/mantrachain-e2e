@@ -2,7 +2,6 @@ import json
 import os
 import signal
 import subprocess
-import tempfile
 from pathlib import Path
 
 import _jsonnet
@@ -10,6 +9,11 @@ import tomlkit
 import web3
 from pystarport import cluster, ports
 from pystarport.expansion import expand
+from pystarport.utils import (
+    wait_for_block,
+    wait_for_port,
+    wait_for_url,
+)
 from requests.exceptions import (
     HTTPError,
     Timeout,
@@ -19,13 +23,11 @@ from web3 import AsyncHTTPProvider, AsyncWeb3, HTTPProvider, WebSocketProvider
 from web3.middleware import ExtraDataToPOAMiddleware
 from web3.providers.rpc.utils import ExceptionRetryConfiguration
 
-from .cosmoscli import CosmosCLI
+from .cosmoscli import ChainCommand, CosmosCLI
 from .utils import (
     CHAIN_ID,
+    CMD,
     supervisorctl,
-    wait_for_block,
-    wait_for_port,
-    wait_for_url,
 )
 
 RETRY_CONFIG = ExceptionRetryConfiguration(
@@ -35,7 +37,7 @@ RETRY_CONFIG = ExceptionRetryConfiguration(
 
 
 class Mantra:
-    def __init__(self, base_dir, chain_binary="mantrachaind"):
+    def __init__(self, base_dir, chain_binary=CMD):
         self._w3 = None
         self._async_w3 = None
         self.base_dir = base_dir
@@ -169,15 +171,8 @@ class ConnectMantra:
 
 
 def setup_mantra(path, base_port, chain):
-    cfg = Path(__file__).parent / ("configs/default.jsonnet")
-    data = json.loads(
-        _jsonnet.evaluate_file(str(cfg), ext_vars={"CHAIN_CONFIG": chain})
-    )
-    data = expand(data, None, cfg)
-    with tempfile.NamedTemporaryFile("w", suffix=".json") as f:
-        f.write(json.dumps(data))
-        f.flush()
-        yield from setup_custom_mantra(path, base_port, f.name, chain_binary=chain)
+    cfg = Path(__file__).parent / ("configs/enable-indexer.jsonnet")
+    yield from setup_custom_mantra(path, base_port, cfg, chain=chain)
 
 
 def setup_custom_mantra(
@@ -189,7 +184,18 @@ def setup_custom_mantra(
     wait_port=True,
     relayer=cluster.Relayer.HERMES.value,
     genesis=None,
+    chain=None,
 ):
+    assert config.suffix == ".jsonnet"
+
+    # expand jsonnet with ext vars
+    data = json.loads(
+        _jsonnet.evaluate_file(str(config), ext_vars={"CHAIN_CONFIG": chain})
+    )
+    data = expand(data, None, config)
+    config = path / "expanded_config.json"
+    config.write_text(json.dumps(data, indent=2))
+
     cmd = [
         "pystarport",
         "init",
@@ -204,7 +210,7 @@ def setup_custom_mantra(
     if relayer == cluster.Relayer.RLY.value:
         cmd = cmd + ["--relayer", str(relayer)]
     if chain_binary is not None:
-        cmd = cmd[:1] + ["--cmd", chain_binary] + cmd[1:]
+        cmd = cmd[:1] + ["--cmd", f'"{chain_binary}"'] + cmd[1:]
     print(*cmd)
     subprocess.run(cmd, check=True)
     if post_init is not None:
@@ -216,7 +222,15 @@ def setup_custom_mantra(
     try:
         if wait_port:
             wait_for_port(ports.rpc_port(base_port))
-        c = Mantra(path / CHAIN_ID, chain_binary=chain_binary or "mantrachaind")
+        chain_binary = (
+            chain
+            if chain_binary is None
+            else next(
+                (b.strip() for b in chain_binary.split(",") if chain in b),
+                chain,
+            )
+        )
+        c = Mantra(path / CHAIN_ID, chain_binary=chain_binary)
         wait_for_block(c.cosmos_cli(), 1)
         yield c
     finally:
@@ -229,10 +243,15 @@ def connect_custom_mantra():
     rpc = os.getenv("RPC", "http://127.0.0.1:26657")
     evm_rpc = os.getenv("EVM_RPC", "http://127.0.0.1:26651")
     evm_rpc_ws = os.getenv("EVM_RPC_WS", "ws://127.0.0.1:26652")
-    chain_id = os.getenv("CHAIN_ID", CHAIN_ID)
     wait_for_url(rpc)
-    wait_for_url(evm_rpc)
-    yield ConnectMantra(rpc, evm_rpc, evm_rpc_ws, chain_id)
+    has_evm = True
+    try:
+        ChainCommand(CMD)("q", "evm")
+    except AssertionError:
+        has_evm = False
+    if has_evm:
+        wait_for_url(evm_rpc)
+    yield ConnectMantra(rpc, evm_rpc, evm_rpc_ws, CHAIN_ID, chain_binary=CMD)
 
 
 class Geth:
@@ -253,7 +272,7 @@ def setup_geth(path, base_port):
             "--miner.etherbase",
             "0x57f96e6B86CdeFdB3d412547816a82E3E0EbF9D2",
             "--http.api",
-            "eth,net,web3,debug",
+            "eth,net,web3,debug,txpool",
         ]
         print(*cmd)
         proc = subprocess.Popen(

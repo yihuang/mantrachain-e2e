@@ -1,11 +1,16 @@
 import json
 import subprocess
-import tempfile
 
 import requests
-from pystarport.utils import build_cli_args_safe, interact, parse_amount
+from pystarport.cosmoscli import CosmosCLI as PystarportCosmosCLI
+from pystarport.utils import build_cli_args_safe, interact
 
-from .utils import DEFAULT_GAS, DEFAULT_GAS_PRICE, MNEMONICS, get_sync_info
+from .utils import (
+    DEFAULT_DENOM,
+    DEFAULT_GAS,
+    DEFAULT_GAS_PRICE,
+    MNEMONICS,
+)
 
 
 class ChainCommand:
@@ -18,7 +23,7 @@ class ChainCommand:
         return interact(f"{self.cmd} {args}", input=stdin, stderr=stderr)
 
 
-class CosmosCLI:
+class CosmosCLI(PystarportCosmosCLI):
     "the apis to interact with wallet and blockchain"
 
     def __init__(
@@ -27,28 +32,33 @@ class CosmosCLI:
         node_rpc,
         cmd,
         chain_id=None,
+        gas=DEFAULT_GAS,
+        gas_prices=DEFAULT_GAS_PRICE,
     ):
-        self.data_dir = data_dir
-        genesis_path = self.data_dir / "config" / "genesis.json"
+        super().__init__(data_dir, node_rpc, chain_id, cmd, gas, gas_prices)
         self.raw = ChainCommand(cmd)
+        genesis_path = self.data_dir / "config" / "genesis.json"
         if genesis_path.exists():
             self._genesis = json.loads(genesis_path.read_text())
-            self.chain_id = self._genesis["chain_id"]
+            if chain_id is None:
+                self.chain_id = self._genesis["chain_id"]
         else:
             self._genesis = {}
-            self.chain_id = chain_id
-            # avoid client.yml overwrite flag in textual mode
-            self.raw(
-                "config", "set", "client", "chain-id", chain_id, home=self.data_dir
-            )
-            self.raw("config", "set", "client", "node", node_rpc, home=self.data_dir)
-        self.node_rpc = node_rpc
-        self.output = None
-        self.error = None
+            if chain_id is not None:
+                # avoid client.yml overwrite flag in textual mode
+                self.raw(
+                    "config", "set", "client", "chain-id", chain_id, home=self.data_dir
+                )
+                self.raw(
+                    "config", "set", "client", "node", node_rpc, home=self.data_dir
+                )
 
     @property
     def node_rpc_http(self):
-        return "http" + self.node_rpc.removeprefix("tcp")
+        url = self.node_rpc.removeprefix("tcp")
+        if not url.startswith(("http://", "https://")):
+            url = "http" + url
+        return url
 
     @classmethod
     def init(cls, moniker, data_dir, node_rpc, cmd, chain_id):
@@ -61,35 +71,8 @@ class CosmosCLI:
         )
         return cls(data_dir, node_rpc, cmd)
 
-    def validators(self):
-        return json.loads(
-            self.raw("q", "staking", "validators", output="json", node=self.node_rpc)
-        )["validators"]
-
-    def status(self):
-        return json.loads(self.raw("status", node=self.node_rpc))
-
-    def block_height(self):
-        return int(get_sync_info(self.status())["latest_block_height"])
-
-    def balances(self, addr, height=0, **kwargs):
-        return json.loads(
-            self.raw(
-                "q",
-                "bank",
-                "balances",
-                addr,
-                height=height,
-                **(self.get_base_kwargs() | kwargs),
-            )
-        )["balances"]
-
-    def balance(self, addr, denom="uom", height=0):
-        denoms = {
-            coin["denom"]: int(coin["amount"])
-            for coin in self.balances(addr, height=height)
-        }
-        return denoms.get(denom, 0)
+    def balance(self, addr, denom=DEFAULT_DENOM, height=0):
+        return super().balance(addr, denom=denom, height=height)
 
     def address(self, name, bech="acc", field="address", skip_create=False):
         try:
@@ -120,371 +103,39 @@ class CosmosCLI:
                 raise
         return output.strip().decode()
 
-    def account(self, addr, **kwargs):
-        return json.loads(
-            self.raw("q", "auth", "account", addr, **(self.get_base_kwargs() | kwargs))
-        )
-
-    def transfer(
-        self,
-        from_,
-        to,
-        coins,
-        generate_only=False,
-        event_query_tx=True,
-        fees=None,
-        **kwargs,
-    ):
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "bank",
-                "send",
-                from_,
-                to,
-                coins,
-                "-y",
-                "--generate-only" if generate_only else None,
-                fees=fees,
-                **(self.get_kwargs_with_gas() | kwargs),
-            )
-        )
-        if rsp.get("code") == 0 and event_query_tx:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def event_query_tx_for(self, hash, **kwargs):
-        return json.loads(
-            self.raw(
-                "q",
-                "event-query-tx-for",
-                hash,
-                **(self.get_base_kwargs() | kwargs),
-            )
-        )
-
-    def query_all_txs(self, addr, **kwargs):
-        txs = self.raw(
-            "q",
-            "txs-all",
-            addr,
-            **(self.get_base_kwargs() | kwargs),
-        )
-        return json.loads(txs)
-
-    def broadcast_tx(self, tx_file, **kwargs):
-        kwargs.setdefault("broadcast_mode", "sync")
-        kwargs.setdefault("output", "json")
-        rsp = json.loads(
-            self.raw("tx", "broadcast", tx_file, node=self.node_rpc, **kwargs)
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"], **kwargs)
-        return rsp
-
-    def broadcast_tx_json(self, tx, **kwargs):
-        with tempfile.NamedTemporaryFile("w") as fp:
-            json.dump(tx, fp)
-            fp.flush()
-            return self.broadcast_tx(fp.name, **kwargs)
-
-    def sign_tx(self, tx_file, signer, **kwargs):
-        default_kwargs = self.get_kwargs()
-        return json.loads(
-            self.raw(
-                "tx",
-                "sign",
-                tx_file,
-                from_=signer,
-                **(default_kwargs | kwargs),
-            )
-        )
-
-    def sign_tx_json(self, tx, signer, max_priority_price=None, **kwargs):
-        if max_priority_price is not None:
-            tx["body"]["extension_options"].append(
-                {
-                    "@type": "/cosmos.evm.types.v1.ExtensionOptionDynamicFeeTx",
-                    "max_priority_price": str(max_priority_price),
-                }
-            )
-        with tempfile.NamedTemporaryFile("w") as fp:
-            json.dump(tx, fp)
-            fp.flush()
-            return self.sign_tx(fp.name, signer, **kwargs)
-
-    def create_account(self, name, mnemonic=None, coin_type=60, **kwargs):
-        "create new keypair in node's keyring"
-        if coin_type == 60:
-            kwargs["key_type"] = "eth_secp256k1"
-        default_kwargs = self.get_kwargs()
-        if mnemonic is None:
-            output = self.raw(
-                "keys",
-                "add",
-                name,
-                **(default_kwargs | kwargs),
-            )
-        else:
-            output = self.raw(
-                "keys",
-                "add",
-                name,
-                "--recover",
-                stdin=mnemonic.encode() + b"\n",
-                **(default_kwargs | kwargs),
-            )
-        return json.loads(output)
-
-    def list_accounts(self, **kwargs):
-        return json.loads(
-            self.raw(
-                "keys",
-                "list",
-                **(self.get_base_kwargs() | kwargs),
-            )
-        )
-
-    def build_evm_tx(self, raw_tx: str, **kwargs):
-        default_kwargs = self.get_kwargs()
-        return json.loads(
-            self.raw(
-                "tx",
-                "evm",
-                "raw",
-                raw_tx,
-                "-y",
-                "--generate-only",
-                **(default_kwargs | kwargs),
-            )
-        )
-
-    def submit_gov_proposal(self, proposal, **kwargs):
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "gov",
-                "submit-proposal",
-                proposal,
-                "-y",
-                stderr=subprocess.DEVNULL,
-                **(self.get_kwargs_with_gas() | kwargs),
-            )
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def query_grant(self, granter, grantee, **kwargs):
-        "query grant details by granter and grantee addresses"
-        res = json.loads(
-            self.raw(
-                "q",
-                "feegrant",
-                "grant",
-                granter,
-                grantee,
-                **(self.get_base_kwargs() | kwargs),
-            )
-        )
-        res = res.get("allowance") or res
-        return res
-
-    def query_proposal(self, proposal_id, **kwargs):
-        res = json.loads(
-            self.raw(
-                "q",
-                "gov",
-                "proposal",
-                proposal_id,
-                **(self.get_base_kwargs() | kwargs),
-            )
-        )
-        return res.get("proposal") or res
-
-    def query_proposals(self, **kwargs):
-        res = json.loads(
-            self.raw(
-                "q",
-                "gov",
-                "proposals",
-                **(self.get_base_kwargs() | kwargs),
-            )
-        )
-        return res.get("proposals") or res
-
-    def staking_pool(self, bonded=True, **kwargs):
-        res = self.raw("q", "staking", "pool", **(self.get_base_kwargs() | kwargs))
-        res = json.loads(res)
-        res = res.get("pool") or res
-        return int(res["bonded_tokens" if bonded else "not_bonded_tokens"])
-
-    def delegate_amount(self, validator_address, amt, **kwargs):
-        default_kwargs = self.get_kwargs()
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "staking",
-                "delegate",
-                validator_address,
-                amt,
-                "-y",
-                **(default_kwargs | kwargs),
-            )
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def query_tally(self, proposal_id, **kwargs):
-        res = json.loads(
-            self.raw(
-                "q",
-                "gov",
-                "tally",
-                proposal_id,
-                **(self.get_base_kwargs() | kwargs),
-            )
-        )
-        return res.get("tally") or res
-
-    def gov_vote(self, voter, proposal_id, option, event_query_tx=True, **kwargs):
-        default_kwargs = self.get_kwargs()
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "gov",
-                "vote",
-                proposal_id,
-                option,
-                "-y",
-                from_=voter,
-                **(default_kwargs | kwargs),
-            )
-        )
-        if rsp.get("code") == 0 and event_query_tx:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def query_bank_send(self, *denoms, **kwargs):
-        return json.loads(
-            self.raw(
-                "q",
-                "bank",
-                "send-enabled",
-                *denoms,
-                **(self.get_base_kwargs() | kwargs),
-            )
-        ).get("send_enabled", [])
-
-    def make_multisig(self, name, signer1, signer2, **kwargs):
-        self.raw(
+    def delete_account(self, name):
+        return self.raw(
             "keys",
-            "add",
+            "delete",
             name,
-            multisig=f"{signer1},{signer2}",
-            multisig_threshold="2",
-            **(self.get_kwargs() | kwargs),
+            "-y",
+            "--force",
+            home=self.data_dir,
+            output="json",
+            keyring_backend="test",
         )
 
-    def sign_multisig_tx(self, tx_file, multi_addr, signer_name, **kwargs):
-        return json.loads(
-            self.raw(
-                "tx",
-                "sign",
-                tx_file,
-                from_=signer_name,
-                multisig=multi_addr,
-                **(self.get_kwargs() | kwargs),
-            )
-        )
+    def debug_addr(self, eth_addr, bech="acc"):
+        output = self.raw("debug", "addr", eth_addr).decode().strip().split("\n")
+        if bech == "val":
+            prefix = "Bech32 Val"
+        elif bech == "hex":
+            prefix = "Address hex:"
+        else:
+            prefix = "Bech32 Acc"
+        for line in output:
+            if line.startswith(prefix):
+                return line.split()[-1]
+        return eth_addr
 
-    def combine_multisig_tx(
-        self, tx_file, multi_name, signer1_file, signer2_file, **kwargs
-    ):
-        default_kwargs = self.get_kwargs()
-        return json.loads(
-            self.raw(
-                "tx",
-                "multisign",
-                tx_file,
-                multi_name,
-                signer1_file,
-                signer2_file,
-                **(default_kwargs | kwargs),
-            )
-        )
-
-    def account_by_num(self, num, **kwargs):
-        return json.loads(
-            self.raw(
-                "q",
-                "auth",
-                "address-by-acc-num",
-                num,
-                **(self.get_base_kwargs() | kwargs),
-            )
-        )
-
-    def get_base_kwargs(self):
-        return {
-            "home": self.data_dir,
-            "node": self.node_rpc,
-            "output": "json",
-        }
-
-    def get_kwargs(self):
-        return self.get_base_kwargs() | {
-            "keyring_backend": "test",
-            "chain_id": self.chain_id,
-        }
-
-    def get_kwargs_with_gas(self):
-        return self.get_kwargs() | {
-            "gas_prices": DEFAULT_GAS_PRICE,
-            "gas": DEFAULT_GAS,
-        }
-
-    def software_upgrade(self, proposer, proposal, **kwargs):
-        default_kwargs = self.get_kwargs()
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "upgrade",
-                "software-upgrade",
-                proposal["name"],
-                "-y",
-                "--no-validate",
-                from_=proposer,
-                # content
-                title=proposal.get("title"),
-                note=proposal.get("note"),
-                upgrade_height=proposal.get("upgrade-height"),
-                upgrade_time=proposal.get("upgrade-time"),
-                upgrade_info=proposal.get("upgrade-info"),
-                summary=proposal.get("summary"),
-                deposit=proposal.get("deposit"),
-                # basic
-                **(default_kwargs | kwargs),
-            )
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def get_params(self, module, **kwargs):
-        default_kwargs = self.get_base_kwargs()
-        return json.loads(self.raw("q", module, "params", **(default_kwargs | kwargs)))
-
-    def query_base_fee(self, **kwargs):
-        return json.loads(
-            self.raw(
-                "q",
-                "feemarket",
-                "base-fee",
-                **(self.get_base_kwargs() | kwargs),
-            )
-        )["base_fee"]
+    def debug_pubkey(self, pubkey):
+        output = self.raw("debug", "pubkey", pubkey).decode().strip().split("\n")
+        prefix = "Address (EIP-55):"
+        for line in output:
+            if line.startswith(prefix):
+                addr = line.split()[-1]
+                return addr[2:] if addr.startswith("0x") else addr
+        return pubkey
 
     def create_tokenfactory_denom(self, subdenom, generate_only=False, **kwargs):
         rsp = json.loads(
@@ -543,13 +194,6 @@ class CosmosCLI:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
 
-    def tx_search(self, events: str):
-        return json.loads(
-            self.raw(
-                "query", "txs", query=f'"{events}"', output="json", node=self.node_rpc
-            )
-        )
-
     def tx_search_rpc(self, events: str):
         rsp = requests.get(
             f"{self.node_rpc_http}/tx_search",
@@ -559,49 +203,6 @@ class CosmosCLI:
         ).json()
         assert "error" not in rsp, rsp["error"]
         return rsp["result"]["txs"]
-
-    def query_erc20_token_pair(self, token, **kwargs):
-        return json.loads(
-            self.raw(
-                "q",
-                "erc20",
-                "token-pair",
-                token,
-                **(self.get_base_kwargs() | kwargs),
-            )
-        ).get("token_pair", {})
-
-    def query_erc20_token_pairs(self, **kwargs):
-        return json.loads(
-            self.raw(
-                "q",
-                "erc20",
-                "token-pairs",
-                **(self.get_base_kwargs() | kwargs),
-            )
-        ).get("token_pairs", [])
-
-    def convert_erc20(self, contract, amt, **kwargs):
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "erc20",
-                "convert-erc20",
-                contract,
-                amt,
-                "-y",
-                **(self.get_kwargs_with_gas() | kwargs),
-            )
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def rollback(self):
-        self.raw("rollback", home=self.data_dir)
-
-    def prune(self, kind="everything"):
-        return self.raw("prune", kind, home=self.data_dir).decode()
 
     def set_tokenfactory_denom(self, meta, generate_only=False, **kwargs):
         rsp = json.loads(
@@ -618,17 +219,6 @@ class CosmosCLI:
         if rsp.get("code") == 0:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
-
-    def query_bank_denom_metadata(self, denom, **kwargs):
-        return json.loads(
-            self.raw(
-                "q",
-                "bank",
-                "denom-metadata",
-                denom,
-                **(self.get_base_kwargs() | kwargs),
-            )
-        ).get("metadata")
 
     def query_denom_authority_metadata(self, denom, **kwargs):
         return json.loads(
@@ -658,66 +248,21 @@ class CosmosCLI:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
 
-    def set_withdraw_addr(self, bech32_addr, **kwargs):
+    def set_tokenfactory_before_send_hook(self, denom, address, **kwargs):
         rsp = json.loads(
             self.raw(
                 "tx",
-                "distribution",
-                "set-withdraw-addr",
+                "tokenfactory",
+                "set-before-send-hook",
+                denom,
+                address,
                 "-y",
-                bech32_addr,
                 **(self.get_kwargs_with_gas() | kwargs),
             )
         )
         if rsp.get("code") == 0:
             rsp = self.event_query_tx_for(rsp["txhash"])
         return rsp
-
-    def fund_validator_rewards_pool(self, val_addr, amt, **kwargs):
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "distribution",
-                "fund-validator-rewards-pool",
-                "-y",
-                val_addr,
-                amt,
-                **(self.get_kwargs_with_gas() | kwargs),
-            )
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def withdraw_all_rewards(self, generate_only=False, **kwargs):
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "distribution",
-                "withdraw-all-rewards",
-                "-y",
-                "--generate-only" if generate_only else None,
-                **(self.get_kwargs_with_gas() | kwargs),
-            )
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def distribution_reward(self, delegator_addr, **kwargs):
-        res = json.loads(
-            self.raw(
-                "q",
-                "distribution",
-                "rewards",
-                delegator_addr,
-                **(self.get_base_kwargs() | kwargs),
-            )
-        )
-        total = res.get("total")
-        if not total or total[0] is None:
-            return 0
-        return parse_amount(total[0])
 
     def query_disabled_list(self, **kwargs):
         return json.loads(
@@ -727,66 +272,7 @@ class CosmosCLI:
                 "disabled-list",
                 **(self.get_base_kwargs() | kwargs),
             )
-        ).get("disabled_list")
-
-    def grant_authorization(self, grantee, authz_type, **kwargs):
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "authz",
-                "grant",
-                grantee,
-                authz_type,
-                "-y",
-                **(self.get_kwargs_with_gas() | kwargs),
-            )
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def exec_tx_by_grantee(self, tx_file, **kwargs):
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "authz",
-                "exec",
-                tx_file,
-                "-y",
-                **(self.get_kwargs_with_gas() | kwargs),
-            )
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def revoke_authorization(self, grantee, msg_type, **kwargs):
-        rsp = json.loads(
-            self.raw(
-                "tx",
-                "authz",
-                "revoke",
-                grantee,
-                msg_type,
-                "-y",
-                **(self.get_kwargs_with_gas() | kwargs),
-            )
-        )
-        if rsp.get("code") == 0:
-            rsp = self.event_query_tx_for(rsp["txhash"])
-        return rsp
-
-    def query_grants(self, granter, grantee, **kwargs):
-        return json.loads(
-            self.raw(
-                "q",
-                "authz",
-                "grants",
-                granter,
-                grantee,
-                **(self.get_base_kwargs() | kwargs),
-            )
-        ).get("grants", [])
+        ).get("disabled_list", [])
 
     def query_blacklist(self, **kwargs):
         return json.loads(
@@ -798,23 +284,281 @@ class CosmosCLI:
             )
         ).get("blacklisted_accounts", [])
 
-    def ibc_denom_hash(self, path, **kwargs):
+    def has_module(self, module):
+        try:
+            self.raw("q", module)
+            return True
+        except AssertionError:
+            return False
+
+    def wasm_store(self, path, wallet, **kwargs):
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "wasm",
+                "store",
+                path,
+                "--instantiate-anyof-addresses",
+                wallet,
+                "-y",
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def wasm_instantiate(self, code_id, wallet, label="test", msg="{}", **kwargs):
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "wasm",
+                "instantiate",
+                code_id,
+                msg,
+                "--admin",
+                wallet,
+                "--label",
+                label,
+                "-y",
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def wasm_execute(self, addr, msg, amt=None, **kwargs):
+        if isinstance(msg, dict):
+            msg = json.dumps(msg)
+        cmd = ["tx", "wasm", "execute", addr, msg, "-y"]
+        if amt:
+            cmd += ["--amount", amt]
+        rsp = json.loads(
+            self.raw(
+                *cmd,
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def query_wasm_contract_state(self, addr, msg, cmd="smart", **kwargs):
+        if isinstance(msg, dict):
+            msg = json.dumps(msg)
         return json.loads(
             self.raw(
                 "q",
-                "ibc-transfer",
-                "denom-hash",
-                path,
+                "wasm",
+                "contract-state",
+                cmd,
+                "--b64" if cmd == "raw" else None,
+                addr,
+                msg,
                 **(self.get_base_kwargs() | kwargs),
             )
-        ).get("hash")
+        )
 
-    def export(self, **kwargs):
-        raw = self.raw("export", home=self.data_dir, **kwargs)
-        if isinstance(raw, bytes):
-            raw = raw.decode()
-        # skip oracle client log
-        idx = raw.find("{")
-        if idx == -1:
-            raise ValueError("No JSON object found in export output")
-        return json.loads(raw[idx:])
+    def wasm_migrate(self, addr, code_id, msg, **kwargs):
+        if isinstance(msg, dict):
+            msg = json.dumps(msg)
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "wasm",
+                "migrate",
+                addr,
+                code_id,
+                msg,
+                "-y",
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def total_supply_of(self, denom=DEFAULT_DENOM, **kwargs):
+        return super().total_supply_of(denom=denom, **kwargs)
+
+    def provider_create_consumer(self, msg, **kwargs):
+        if isinstance(msg, dict):
+            msg = json.dumps(msg)
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "provider",
+                "create-consumer",
+                msg,
+                "-y",
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def provider_update_consumer(self, msg, **kwargs):
+        if isinstance(msg, dict):
+            msg = json.dumps(msg)
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "provider",
+                "update-consumer",
+                msg,
+                "-y",
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def provider_consumer_genesis(self, consumer_id, **kwargs):
+        return json.loads(
+            self.raw(
+                "q",
+                "provider",
+                "consumer-genesis",
+                consumer_id,
+                **(self.get_base_kwargs() | kwargs),
+            )
+        )
+
+    def provider_opt_in(self, consumer_id, **kwargs):
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "provider",
+                "opt-in",
+                consumer_id,
+                "-y",
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def oracle_add_currency_pairs(self, pairs, **kwargs):
+        rsp = json.loads(
+            self.raw(
+                "tx",
+                "oracle",
+                "add-currency-pairs",
+                "--currency-pairs",
+                json.dumps(pairs),
+                "-y",
+                **(self.get_kwargs_with_gas() | kwargs),
+            )
+        )
+        if rsp.get("code") == 0:
+            rsp = self.event_query_tx_for(rsp["txhash"])
+        return rsp
+
+    def oracle_query_currency_pairs(self, **kwargs):
+        res = json.loads(
+            self.raw(
+                "q",
+                "oracle",
+                "currency-pairs",
+                **(self.get_base_kwargs() | kwargs),
+            )
+        )
+        return res.get("currency_pairs", [])
+
+    def cleanup_block_events(self, height):
+        return self.raw(
+            "cleanup-block-events",
+            height,
+            home=self.data_dir,
+        )
+
+    def query_delegator_starting_info(
+        self,
+        delegator,
+        validator,
+        **kwargs,
+    ):
+        return json.loads(
+            self.raw(
+                "q",
+                "distribution",
+                "delegator-starting-info",
+                delegator,
+                validator,
+                **(self.get_base_kwargs() | kwargs),
+            )
+        ).get("starting_info")
+
+    def query_validator_historical_rewards(
+        self,
+        delegator,
+        period,
+        **kwargs,
+    ):
+        return json.loads(
+            self.raw(
+                "q",
+                "distribution",
+                "validator-historical-rewards",
+                delegator,
+                period,
+                **(self.get_base_kwargs() | kwargs),
+            )
+        ).get("rewards")
+
+    def query_precisebank_fraction(self, addr, **kwargs):
+        res = json.loads(
+            self.raw(
+                "q",
+                "precisebank",
+                "fractional-balance",
+                addr,
+                **(self.get_base_kwargs() | kwargs),
+            )
+        )
+        return int(res.get("fractional_balance", {}).get("amount", "0"))
+
+    def query_doc_records(self, **kwargs):
+        res = json.loads(
+            self.raw(
+                "q",
+                "document",
+                "records",
+                **(self.get_base_kwargs() | kwargs),
+            )
+        )
+        return res.get("records", [])
+
+    def query_registry(self, **kwargs):
+        return json.loads(
+            self.raw(
+                "q",
+                "document",
+                "registry",
+                **(self.get_base_kwargs() | kwargs),
+            )
+        )
+
+    def query_registries(self, **kwargs):
+        return json.loads(
+            self.raw(
+                "q",
+                "document",
+                "registries",
+                **(self.get_base_kwargs() | kwargs),
+            )
+        )
+
+    def query_provider_info(self, **kwargs):
+        return json.loads(
+            self.raw(
+                "q",
+                "ccvconsumer",
+                "provider-info",
+                **(self.get_base_kwargs() | kwargs),
+            )
+        )

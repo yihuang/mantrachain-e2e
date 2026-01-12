@@ -2,18 +2,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import pytest
+from pystarport.utils import w3_wait_for_block, w3_wait_for_new_blocks
 from web3 import Web3
 
 from .network import setup_custom_mantra
 from .utils import (
     ADDRS,
-    WEI_PER_UOM,
+    WEI_PER_DENOM,
     adjust_base_fee,
     module_address,
     send_transaction,
     submit_gov_proposal,
-    w3_wait_for_block,
-    w3_wait_for_new_blocks,
 )
 
 NEW_BASE_FEE = 10000000000
@@ -22,10 +21,14 @@ pytestmark = pytest.mark.slow
 
 
 @pytest.fixture(scope="module")
-def custom_mantra(tmp_path_factory):
+def custom_mantra(request, tmp_path_factory):
+    chain = request.config.getoption("chain_config")
     path = tmp_path_factory.mktemp("fee-history")
     yield from setup_custom_mantra(
-        path, 26500, Path(__file__).parent / "configs/fee-history.jsonnet"
+        path,
+        26500,
+        Path(__file__).parent / "configs/fee-history.jsonnet",
+        chain=chain,
     )
 
 
@@ -127,12 +130,12 @@ def test_percentiles(custom_mantra):
 
 def update_feemarket_param(node, tmp_path, new_multiplier=2, new_denominator=200000000):
     cli = node.cosmos_cli()
-    p = cli.get_params("feemarket")["params"]
-    new_base_fee = f"{NEW_BASE_FEE/WEI_PER_UOM}"
+    p = cli.get_params("feemarket")
+    new_base_fee = f"{NEW_BASE_FEE/WEI_PER_DENOM}"
     p["base_fee"] = new_base_fee
     p["elasticity_multiplier"] = new_multiplier
     p["base_fee_change_denominator"] = new_denominator
-    submit_gov_proposal(
+    heights = submit_gov_proposal(
         node,
         tmp_path,
         messages=[
@@ -143,10 +146,13 @@ def update_feemarket_param(node, tmp_path, new_multiplier=2, new_denominator=200
             }
         ],
     )
-    p = cli.get_params("feemarket")["params"]
-    assert float(p["base_fee"]) - float(new_base_fee) == 0
-    assert p["elasticity_multiplier"] == new_multiplier
-    assert p["base_fee_change_denominator"] == new_denominator
+    for height in range(heights[0], heights[1] + 1):
+        params = cli.get_params("feemarket", height=height)
+        print(f"check params at height {height}: {params}")
+        if float(params["base_fee"]) == float(new_base_fee):
+            break
+    assert params["elasticity_multiplier"] == new_multiplier
+    assert params["base_fee_change_denominator"] == new_denominator
 
 
 def test_concurrent(custom_mantra, tmp_path):
@@ -193,7 +199,7 @@ def assert_histories(w3, cli, blk, percentiles=[]):
         prev = b - 1
         blk = w3.eth.get_block(prev)
         base_fee = blk.baseFeePerGas
-        params = cli.get_params("feemarket")["params"]
+        params = cli.get_params("feemarket")
         res = adjust_base_fee(
             base_fee,
             blk.gasLimit,

@@ -4,15 +4,18 @@ from pathlib import Path
 import pytest
 import web3
 from pystarport import cluster, ports
+from pystarport.utils import (
+    get_sync_info,
+    wait_for_block,
+    wait_for_port,
+)
 
 from .utils import (
     ADDRS,
-    KEYS,
+    CMD,
     Greeter,
-    get_sync_info,
+    edit_app_cfg,
     send_transaction,
-    wait_for_block,
-    wait_for_port,
 )
 
 
@@ -20,14 +23,14 @@ def test_statesync(mantra):
     w3 = mantra.w3
     tx_value = 10000
     gas_price = w3.eth.gas_price
-    initial_balance = w3.eth.get_balance(ADDRS["community"])
-    tx = {"to": ADDRS["community"], "value": tx_value, "gasPrice": gas_price}
-    txhash_0 = send_transaction(w3, tx, KEYS["validator"])["transactionHash"].hex()
+    initial_balance = w3.eth.get_balance(ADDRS["signer1"])
+    tx = {"to": ADDRS["signer1"], "value": tx_value, "gasPrice": gas_price}
+    txhash_0 = send_transaction(w3, tx)["transactionHash"].hex()
 
-    greeter = Greeter("Greeter", KEYS["validator"])
+    greeter = Greeter("Greeter")
     txhash_1 = greeter.deploy(w3)["transactionHash"].hex()
 
-    assert w3.eth.get_balance(ADDRS["community"]) == initial_balance + tx_value
+    assert w3.eth.get_balance(ADDRS["signer1"]) == initial_balance + tx_value
 
     # Wait 5 more block (sometimes not enough blocks can not work)
     cli0 = mantra.cosmos_cli(0)
@@ -42,23 +45,11 @@ def test_statesync(mantra):
     # We can only create a new node with statesync config
     data = Path(mantra.base_dir).parent  # Same data dir as mantra fixture
     chain_id = mantra.config["chain_id"]  # Same chain_id as mantra fixture
-    cmd = "mantrachaind"
     # create a clustercli object from ClusterCLI class
-    clustercli = cluster.ClusterCLI(data, cmd=cmd, chain_id=chain_id)
+    clustercli = cluster.ClusterCLI(data, cmd=CMD, chain_id=chain_id)
     # create a new node with statesync enabled
     i = clustercli.create_node(moniker="statesync", statesync=True)
-    # Modify the json-rpc addresses to avoid conflict
-    cluster.edit_app_cfg(
-        clustercli.home(i) / "config/app.toml",
-        clustercli.base_port(i),
-        {
-            "json-rpc": {
-                "enable": True,
-                "address": "127.0.0.1:{EVMRPC_PORT}",
-                "ws-address": "127.0.0.1:{EVMRPC_PORT_WS}",
-            },
-        },
-    )
+    edit_app_cfg(clustercli, i)
     clustercli.supervisor.startProcess(f"{clustercli.chain_id}-node{i}")
     # Wait 1 more block
     wait_for_block(clustercli.cosmos_cli(i), cli0.block_height() + 1)
@@ -82,7 +73,7 @@ def test_statesync(mantra):
         statesync_w3.eth.get_transaction(txhash_1)
 
     # execute new transactions
-    txhash_2 = send_transaction(w3, tx, KEYS["validator"])["transactionHash"].hex()
+    txhash_2 = send_transaction(w3, tx)["transactionHash"].hex()
     txhash_3 = greeter.transfer("world")["transactionHash"].hex()
     # Wait 1 more block
     wait_for_block(clustercli.cosmos_cli(i), cli0.block_height() + 1)
@@ -94,7 +85,7 @@ def test_statesync(mantra):
     assert statesync_w3.eth.get_transaction(txhash_2) is not None
     assert statesync_w3.eth.get_transaction(txhash_3) is not None
     assert (
-        statesync_w3.eth.get_balance(ADDRS["community"])
+        statesync_w3.eth.get_balance(ADDRS["signer1"])
         == initial_balance + tx_value + tx_value
     )
 

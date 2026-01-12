@@ -2,11 +2,7 @@ import pytest
 import web3
 from eth_contract.utils import send_transaction
 
-from .utils import (
-    ADDRS,
-    build_and_deploy_contract_async,
-    w3_wait_for_new_blocks_async,
-)
+from .utils import ADDRS, build_and_deploy_contract_async, w3_wait_for_new_blocks_async
 
 pytestmark = pytest.mark.asyncio
 
@@ -26,7 +22,7 @@ async def test_gas_call(mantra):
     input = 10
     contract = await get_burn_gas_contract(w3)
     txhash = await contract.functions.burnGas(input).transact(
-        {"from": ADDRS["validator"], "gasPrice": await w3.eth.gas_price}
+        {"from": ADDRS["community"], "gasPrice": await w3.eth.gas_price}
     )
     receipt = await w3.eth.wait_for_transaction_receipt(txhash)
     assert receipt.gasUsed == 267649
@@ -43,14 +39,14 @@ async def test_block_gas_limit(mantra):
     gas_price = await w3.eth.gas_price
     value = 10
     tx = {
-        "to": ADDRS["community"],
+        "to": ADDRS["signer1"],
         "value": value,
         "gas": exceeded_gas_limit,
         "gasPrice": gas_price,
     }
     # expect an error due to the block gas limit
     msg = "exceeds block gas limit"
-    sender = ADDRS["validator"]
+    sender = ADDRS["community"]
     with pytest.raises(web3.exceptions.Web3RPCError, match=msg):
         await send_transaction(w3, sender, False, **tx)
 

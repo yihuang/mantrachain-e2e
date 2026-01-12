@@ -2,6 +2,8 @@ import itertools
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from pystarport.utils import w3_wait_for_new_blocks
+
 from .expected_constants import (
     EXPECTED_CALLTRACERS,
     EXPECTED_CONTRACT_CREATE_TRACER,
@@ -16,7 +18,6 @@ from .utils import (
     derive_random_account,
     fund_acc,
     send_transaction,
-    w3_wait_for_new_blocks,
 )
 
 
@@ -87,7 +88,7 @@ def test_trace_transactions_tracers(mantra):
     def process(w3):
         fund_acc(w3, acc)
         call = w3.provider.make_request
-        tx = {"to": ADDRS["community"], "value": 100, "gasPrice": price}
+        tx = {"to": ADDRS["signer1"], "value": 100, "gasPrice": price}
         tx_hash = send_transaction(w3, tx)["transactionHash"].hex()
         tx_hash = f"0x{tx_hash}"
         tx_res = call(method, [tx_hash])

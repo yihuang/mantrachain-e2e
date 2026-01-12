@@ -1,4 +1,9 @@
 local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
+local constant = import 'constant.jsonnet';
+local gas_price = constant.gas_price;
+local coins = constant.coins;
+local staked = constant.staked;
+local coin_type = if std.objectHas(chain, 'coin-type') && chain['coin-type'] != null then chain['coin-type'] else 60;
 
 {
   dotenv: '../../scripts/.env',
@@ -11,9 +16,8 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
       },
     },
     'app-config': {
-      chain_id: 'mantra-canary-net-1',
       evm: {
-        'evm-chain-id': 5887,
+        'evm-chain-id': chain.evm_chain_id,
       },
       grpc: {
         'skip-check-header': true,
@@ -25,7 +29,7 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
         enable: true,
         address: '127.0.0.1:{EVMRPC_PORT}',
         'ws-address': '127.0.0.1:{EVMRPC_PORT_WS}',
-        api: 'eth,net,web3,debug',
+        api: 'eth,net,web3,debug,txpool',
         'feehistory-cap': 100,
         'block-range-cap': 10000,
         'logs-cap': 10000,
@@ -37,16 +41,16 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
       },
     },
     validators: [{
-      'coin-type': 60,
-      coins: '100000000000000000000' + chain.evm_denom,
-      staked: '10000000000000000000' + chain.evm_denom,
-      gas_prices: '0.01' + chain.evm_denom,
+      'coin-type': coin_type,
+      coins: coins + chain.evm_denom,
+      staked: staked + chain.evm_denom,
+      gas_prices: gas_price + chain.evm_denom,
       mnemonic: '${VALIDATOR1_MNEMONIC}',
     }, {
-      'coin-type': 60,
-      coins: '100000000000000000000' + chain.evm_denom,
-      staked: '10000000000000000000' + chain.evm_denom,
-      gas_prices: '0.01' + chain.evm_denom,
+      'coin-type': coin_type,
+      coins: coins + chain.evm_denom,
+      staked: staked + chain.evm_denom,
+      gas_prices: gas_price + chain.evm_denom,
       mnemonic: '${VALIDATOR2_MNEMONIC}',
       config: {
         db_backend: 'pebbledb',
@@ -55,10 +59,10 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
         'app-db-backend': 'pebbledb',
       },
     }, {
-      'coin-type': 60,
-      coins: '100000000000000000000' + chain.evm_denom,
-      staked: '10000000000000000000' + chain.evm_denom,
-      gas_prices: '0.01' + chain.evm_denom,
+      'coin-type': coin_type,
+      coins: coins + chain.evm_denom,
+      staked: staked + chain.evm_denom,
+      gas_prices: gas_price + chain.evm_denom,
       mnemonic: '${VALIDATOR3_MNEMONIC}',
       config: {
         db_backend: 'goleveldb',
@@ -68,24 +72,24 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
       },
     }],
     accounts: [{
-      'coin-type': 60,
+      'coin-type': coin_type,
       name: 'community',
-      coins: '100000000000000000000' + chain.evm_denom + ',1000000000000atoken',
+      coins: coins + chain.evm_denom + ',1000000000000atoken',
       mnemonic: '${COMMUNITY_MNEMONIC}',
     }, {
-      'coin-type': 60,
+      'coin-type': coin_type,
       name: 'signer1',
-      coins: '100000000000000000000' + chain.evm_denom,
+      coins: coins + chain.evm_denom,
       mnemonic: '${SIGNER1_MNEMONIC}',
     }, {
-      'coin-type': 60,
+      'coin-type': coin_type,
       name: 'signer2',
-      coins: '100000000000000000000' + chain.evm_denom,
+      coins: coins + chain.evm_denom,
       mnemonic: '${SIGNER2_MNEMONIC}',
     }, {
-      'coin-type': 60,
+      'coin-type': coin_type,
       name: 'reserve',
-      coins: '100000000000000000000' + chain.evm_denom,
+      coins: coins + chain.evm_denom,
       mnemonic: '${RESERVE_MNEMONIC}',
       vesting: '60s',
     }],
@@ -97,17 +101,24 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
             max_gas: '81500000',
           },
           abci: {
-            vote_extensions_enable_height: '1',
+            vote_extensions_enable_height: '0',
           },
         },
       },
       app_state: {
-        evm: {
-          params: {
+        evm: chain.evm {
+          params+: {
             evm_denom: chain.evm_denom,
             active_static_precompiles: [
+              '0x0000000000000000000000000000000000000100',
+              '0x0000000000000000000000000000000000000400',
+              '0x0000000000000000000000000000000000000800',
+              '0x0000000000000000000000000000000000000801',
+              '0x0000000000000000000000000000000000000802',
+              '0x0000000000000000000000000000000000000804',
+              '0x0000000000000000000000000000000000000805',
               '0x0000000000000000000000000000000000000807',
-            ],
+            ] + (if std.objectHas(chain.evm, 'params') && std.objectHas(chain.evm.params, 'active_static_precompiles') then chain.evm.params.active_static_precompiles else []),
           },
         },
         erc20: {
@@ -121,10 +132,8 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
             contract_owner: 1,
           }],
         },
-        feemarket: {
-          params: {
-            base_fee: '0.010000000000000000',
-            min_gas_price: '0.010000000000000000',
+        feemarket: chain.feemarket {
+          params+: {
             min_gas_multiplier: '0',
           },
         },
@@ -147,24 +156,30 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
             ],
           },
         },
+        circuit: {
+          disabled_type_urls: [
+            '/cosmos.distribution.v1beta1.MsgDepositValidatorRewardsPool',
+          ],
+        },
         crisis: {
           constant_fee: {
-            denom: 'uom',
+            denom: chain.evm_denom,
           },
         },
         mint: {
           params: {
-            mint_denom: 'uom',
+            mint_denom: chain.evm_denom,
           },
         },
         staking: {
           params: {
             bond_denom: chain.evm_denom,
+            unbonding_time: '10s',
           },
         },
-        bank: {
-          denom_metadata: [{
-            denom_units: [
+        bank: chain.bank {
+          denom_metadata+: [{
+            denom_units+: [
               {
                 denom: 'atoken',
                 exponent: 0,
@@ -180,7 +195,11 @@ local chain = (import 'chains.jsonnet')[std.extVar('CHAIN_CONFIG')];
             symbol: 'ATOKEN',
           }],
         },
-      },
+      } + (
+        if std.objectHas(chain, 'anchoring') then {
+          anchoring: chain.anchoring,
+        } else {}
+      ),
     },
   },
 }

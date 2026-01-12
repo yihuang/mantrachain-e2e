@@ -16,10 +16,14 @@ pytestmark = pytest.mark.asyncio
 
 
 @pytest.fixture(scope="module")
-def custom_mantra(tmp_path_factory):
+def custom_mantra(request, tmp_path_factory):
+    chain = request.config.getoption("chain_config")
     path = tmp_path_factory.mktemp("permission")
     yield from setup_custom_mantra(
-        path, 26700, Path(__file__).parent / "configs/accounts.jsonnet"
+        path,
+        26700,
+        Path(__file__).parent / "configs/accounts.jsonnet",
+        chain=chain,
     )
 
 
@@ -58,15 +62,18 @@ async def test_transfers_not_allowed(custom_mantra):
         "mint",
         "nft",
         "not_bonded_tokens_pool",
-        "oracle",
-        "precisebank",
         "ratelimit",
-        "sanction",
         "tax",
         "tokenfactory",
         "transfer",
+    ]
+    modules2 = [
+        "oracle",
+        "sanction",
+        "precisebank",
         "wasm",
     ]
+    modules.extend(module for module in modules2 if cli.has_module(module))
     users = cli.list_accounts()
     users = [user["name"] for user in users if user["name"] != "reserve"]
     pairs = []
@@ -83,4 +90,4 @@ async def test_transfers_not_allowed(custom_mantra):
     ]
 
     await asyncio.gather(*user_tasks)
-    assert_transfer(cli, cli.address("validator"), cli.address("community"))
+    assert_transfer(cli, cli.address("community"), cli.address("signer1"))

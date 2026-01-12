@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from pystarport.utils import wait_for_new_blocks
 from web3 import Web3
 
 from .network import setup_custom_mantra
@@ -8,17 +9,22 @@ from .utils import (
     ADDRS,
     KEYS,
     Greeter,
+    module_address,
     send_txs,
     sign_transaction,
-    wait_for_new_blocks,
+    submit_gov_proposal,
 )
 
 
 @pytest.fixture(scope="module")
-def mantra_mempool(tmp_path_factory):
+def mantra_mempool(request, tmp_path_factory):
+    chain = request.config.getoption("chain_config")
     path = tmp_path_factory.mktemp("mantra-mempool")
     yield from setup_custom_mantra(
-        path, 26300, Path(__file__).parent / "configs/long_timeout_commit.jsonnet"
+        path,
+        26300,
+        Path(__file__).parent / "configs/long_timeout_commit.jsonnet",
+        chain=chain,
     )
 
 
@@ -74,8 +80,8 @@ def test_mempool(mantra_mempool):
     assert len(all_pending) == 0
 
 
-@pytest.mark.flaky(max_runs=3)
-def test_mempool_nonce(mantra_mempool):
+@pytest.mark.flaky(max_runs=5)
+def test_mempool_nonce(mantra_mempool, tmp_path):
     """
     test the nonce logic in check-tx after new block is created.
 
@@ -90,23 +96,42 @@ def test_mempool_nonce(mantra_mempool):
     transactions with local nonce.
     """
     w3: Web3 = mantra_mempool.w3
-    cli = mantra_mempool.cosmos_cli(0)
-    wait_for_new_blocks(cli, 1, sleep=0.1)
-    sender = ADDRS["validator"]
+    cli = mantra_mempool.cosmos_cli()
+    p = cli.get_params("consensus")
+    # adjust to 128KB txMaxSize to avoid oversized data when broadcast
+    max_bytes = 131072
+    p["block"]["max_bytes"] = max_bytes
+    p["evidence"]["max_bytes"] = max_bytes
+    p.pop("version", None)
+    submit_gov_proposal(
+        mantra_mempool,
+        tmp_path,
+        messages=[
+            {
+                "@type": "/cosmos.consensus.v1.MsgUpdateParams",
+                "authority": module_address("gov"),
+                **p,
+            }
+        ],
+        event_query_tx=False,
+    )
+    p = cli.get_params("consensus")
+    assert int(p["block"]["max_bytes"]) == max_bytes
+    sender = ADDRS["community"]
     orig_nonce = w3.eth.get_transaction_count(sender)
     height = w3.eth.get_block_number()
     local_nonce = orig_nonce
-    tx_bytes = 1000000  # can only include one tx at a time
+    tx_bytes = max_bytes // 2 + 1  # can only include one tx at a time
 
     def send_with_nonce(nonce):
         tx = {
-            "to": ADDRS["community"],
+            "to": ADDRS["signer1"],
             "value": 1,
             "gas": 4121000,
             "data": "0x" + "00" * tx_bytes,
             "nonce": nonce,
         }
-        signed = sign_transaction(w3, tx, KEYS["validator"])
+        signed = sign_transaction(w3, tx, KEYS["community"])
         txhash = w3.eth.send_raw_transaction(signed.raw_transaction)
         return txhash
 

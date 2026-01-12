@@ -21,15 +21,26 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     config.addinivalue_line("markers", "unmarked: fallback mark for unmarked tests")
     config.addinivalue_line("markers", "slow: marks tests as slow")
+    config.addinivalue_line("markers", "ccv: marks tests as ccv")
     config.addinivalue_line("markers", "asyncio: marks tests as asyncio")
     config.addinivalue_line("markers", "connect: marks connect related tests")
+    config.addinivalue_line("markers", "skipped: marks skipped not supported tests")
 
 
 def pytest_collection_modifyitems(items, config):
     keywordexpr = config.option.keyword
     markexpr = config.option.markexpr
     skip_connect = pytest.mark.skip(reason="Skipping connect tests by default")
+    skip_rollback = pytest.mark.skip(
+        reason="Skipping tests not supported for inveniemd"
+    )
+    chain_config = config.getoption("chain_config")
+
     for item in items:
+        # If both slow and asyncio → drop asyncio so -m asyncio skips it
+        if "slow" in item.keywords and "asyncio" in item.keywords:
+            item.own_markers = [m for m in item.own_markers if m.name != "asyncio"]
+
         # add "unmarked" marker to tests that have no markers
         if not any(item.iter_markers()):
             item.add_marker("unmarked")
@@ -41,6 +52,13 @@ def pytest_collection_modifyitems(items, config):
                 or (markexpr and "connect" in markexpr)
             ):
                 item.add_marker(skip_connect)
+
+        if "skipped" in item.keywords:
+            if chain_config != "mantrachaind" and not (
+                (keywordexpr and "skipped" in keywordexpr)
+                or (markexpr and "skipped" in markexpr)
+            ):
+                item.add_marker(skip_rollback)
 
 
 @pytest.fixture(scope="session")

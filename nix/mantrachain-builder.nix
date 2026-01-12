@@ -1,22 +1,27 @@
 {
   lib,
   stdenv,
-  buildGo123Module,
+  buildGo125Module,
   fetchFromGitHub,
-  rev ? "dirty",
-  nativeByteOrder ? true, # nativeByteOrder mode will panic on big endian machines
   fetchurl,
   pkgsStatic,
 }:
+{
+  version ? "v7.0.0",
+  pname ? "mantrachain",
+  owner ? "MANTRA-Chain",
+  repo ? "mantrachain",
+  rev,
+  hash,
+  vendorHash,
+  wasmvmVersion ? "v3.0.0",
+  nativeByteOrder ? true,
+}:
 let
-  version = "v5.0.0-rc4";
-  pname = "mantrachain";
-  wasmvmVersion = "v3.0.0";
-
   # Use static packages for Linux to ensure musl compatibility
-  buildPackages = if stdenv.isLinux then pkgsStatic else { inherit stdenv buildGo123Module; };
+  buildPackages = if stdenv.isLinux then pkgsStatic else { inherit stdenv buildGo125Module; };
   buildStdenv = buildPackages.stdenv;
-  buildGo123Module' = if stdenv.isLinux then buildPackages.buildGo123Module else buildGo123Module;
+  buildGo125Module' = if stdenv.isLinux then buildPackages.buildGo125Module else buildGo125Module;
 
   # Download wasmvm libraries as fixed-output derivations
   wasmvmLibs = {
@@ -47,6 +52,7 @@ let
   tags =
     [
       "ledger"
+      "ledger_zemu"
       "netgo"
       "osusergo"
       "pebbledb"
@@ -73,24 +79,21 @@ let
     ];
 
 in
-buildGo123Module' rec {
+buildGo125Module' rec {
   inherit
     pname
     version
     tags
     ldflags
+    vendorHash
     ;
   stdenv = buildStdenv;
   src = fetchFromGitHub {
-    owner = "MANTRA-Chain";
-    repo = pname;
-    rev = "cdbf77c3924653b7261976e1a23f70f8442eac8b";
-    hash = "sha256-I5vy9lUNmRr+ODhHF4zbgRww2pbr0zPj+6qCo8Dt3ZA=";
+    inherit owner repo rev hash;
   };
-  vendorHash = "sha256-ORRo9PBeb4l559YpcmyJ8msfML/6TMOXmHX7+IbuxlQ=";
   proxyVendor = true;
   subPackages = [ "cmd/mantrachaind" ];
-  CGO_ENABLED = "1";
+  env.CGO_ENABLED = "1";
 
   preBuild = ''
     mkdir -p $TMPDIR/lib

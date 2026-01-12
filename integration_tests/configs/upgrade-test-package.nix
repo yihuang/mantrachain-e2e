@@ -1,30 +1,22 @@
-{ pkgs ? import ../../nix { }, includeMantrachaind ? true }:
+{ 
+  pkgs ? (builtins.getFlake (toString ../..)).legacyPackages.${builtins.currentSystem or "x86_64-linux"},
+  useLiteMode ? false
+}:
 let
   common = import ./mantrachain-common.nix { inherit pkgs; };
   platform = common.platform;
   releases = {
     genesis = common.mkMantrachain { version = "v4.0.1"; };
-    v5 = common.mkMantrachain { version = "v5.0.0-rc0"; };
-    "v5.0.0-rc1" = common.mkMantrachain { version = "v5.0.0-rc1"; };
-    "v5.0.0-rc2" = common.mkMantrachain { version = "v5.0.0-rc2"; };
-    "v5.0.0-rc3" = common.mkMantrachain { version = "v5.0.0-rc3"; };
-    "v5.0.0-rc4" = common.mkMantrachain { version = "v5.0.0-rc4"; };
-    "v5.0.0-rc5" = common.mkMantrachain { version = "v5.0.0-rc5"; };
-    "v5.0.0-rc6" = common.mkMantrachain { version = "v5.0.0-rc6"; };
-    "v5.0.0-rc7" = pkgs.callPackage ../../nix/rc7 { };
-  } // (
-    pkgs.lib.optionalAttrs includeMantrachaind {
-      "v5.0" = pkgs.callPackage ../../nix/mantrachain { };
-    }
-  ) // (
-    pkgs.lib.optionalAttrs (!includeMantrachaind) {
-      "v5.0" = pkgs.writeShellScriptBin "mantrachaind" ''
-      exec mantrachaind "$@"
-    '';
-    }
-  );
-
+    "v5.0" = common.mkMantrachain { version = "v5.0.0"; };
+    "v6.0.0" = common.mkMantrachain { version = "v6.0.0"; };
+    "v6.1.0" = common.mkMantrachain { version = "v6.1.0"; };
+    "v7.0.0" = pkgs.callPackage ../../nix/v7.0.0/default.nix {};
+    "v8.0.0-rc0" = if useLiteMode
+      then common.localMantrachaindWrapper
+      else pkgs.mantrachaind;
+  };
+  packageName = "upgrade-test-package" + (if useLiteMode then "-lite" else "-full");
 in
-pkgs.linkFarm "upgrade-test-package" (
+pkgs.linkFarm packageName (
   pkgs.lib.mapAttrsToList (name: path: { inherit name path; }) releases
 )

@@ -1,20 +1,22 @@
 import sys
+from pathlib import Path
 
 import pytest
 import web3
 from eth_account import Account
 from eth_contract.utils import send_transaction as send_transaction_async
 from eth_contract.utils import sign_transaction as sign_transaction_async
+from pystarport.utils import wait_for_new_blocks
 
+from .network import setup_custom_mantra
 from .utils import (
     ADDRS,
     DEFAULT_DENOM,
     KEYS,
-    WEI_PER_UOM,
+    WEI_PER_DENOM,
     eth_to_bech32,
     send_transaction,
     sign_transaction,
-    wait_for_new_blocks,
 )
 
 PRIORITY_REDUCTION = 1000000
@@ -131,11 +133,23 @@ def test_priority(mantra):
 
 
 def conver_gas_prices(base_fee, value):
-    return base_fee + (value * PRIORITY_REDUCTION) / WEI_PER_UOM
+    return base_fee + (value * PRIORITY_REDUCTION) / WEI_PER_DENOM
 
 
-def test_native_tx_priority(mantra):
-    cli = mantra.cosmos_cli()
+@pytest.fixture(scope="module")
+def custom_mantra(request, tmp_path_factory):
+    chain = request.config.getoption("chain_config")
+    path = tmp_path_factory.mktemp("default")
+    yield from setup_custom_mantra(
+        path,
+        27100,
+        Path(__file__).parent / "configs/default.jsonnet",
+        chain=chain,
+    )
+
+
+def test_native_tx_priority(custom_mantra):
+    cli = custom_mantra.cosmos_cli()
     base_fee = float(cli.query_base_fee())
     amt = f"1000{DEFAULT_DENOM}"
     test_cases = [
@@ -151,14 +165,14 @@ def test_native_tx_priority(mantra):
             "to": eth_to_bech32(ADDRS["signer2"]),
             "amount": amt,
             "gas_prices": f"{conver_gas_prices(base_fee, 600000)}{DEFAULT_DENOM}",
-            "max_priority_price": PRIORITY_REDUCTION * 200000 / WEI_PER_UOM,
+            "max_priority_price": PRIORITY_REDUCTION * 200000 / WEI_PER_DENOM,
         },
         {
             "from": eth_to_bech32(ADDRS["signer2"]),
             "to": eth_to_bech32(ADDRS["signer1"]),
             "amount": amt,
             "gas_prices": f"{conver_gas_prices(base_fee, 400000)}{DEFAULT_DENOM}",
-            "max_priority_price": PRIORITY_REDUCTION * 400000 / WEI_PER_UOM,
+            "max_priority_price": PRIORITY_REDUCTION * 400000 / WEI_PER_DENOM,
         },
         {
             "from": eth_to_bech32(ADDRS["validator"]),
@@ -187,7 +201,7 @@ def test_native_tx_priority(mantra):
         res = min(
             get_max_priority_price(tc.get("max_priority_price")), gas_price - base_fee
         )
-        expect_priorities.append((res * WEI_PER_UOM) // PRIORITY_REDUCTION)
+        expect_priorities.append((res * WEI_PER_DENOM) // PRIORITY_REDUCTION)
     assert expect_priorities == [0, 200000, 400000, 600000]
 
     txhashes = []

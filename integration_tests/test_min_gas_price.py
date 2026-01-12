@@ -1,40 +1,51 @@
 from pathlib import Path
 
 import pytest
+from pystarport.utils import w3_wait_for_block, wait_for_new_blocks
 
 from .network import setup_custom_mantra
 from .utils import (
     ADDRS,
     KEYS,
-    WEI_PER_UOM,
+    WEI_PER_DENOM,
     adjust_base_fee,
     send_transaction,
-    w3_wait_for_block,
-    wait_for_new_blocks,
 )
 
 
 @pytest.fixture(scope="module")
-def custom_mantra_eq(tmp_path_factory):
+def custom_mantra_eq(request, tmp_path_factory):
+    chain = request.config.getoption("chain_config")
     path = tmp_path_factory.mktemp("min-gas-price-eq")
     yield from setup_custom_mantra(
-        path, 26500, Path(__file__).parent / "configs/min_gas_price_eq.jsonnet"
+        path,
+        26500,
+        Path(__file__).parent / "configs/min_gas_price_eq.jsonnet",
+        chain=chain,
     )
 
 
 @pytest.fixture(scope="module")
-def custom_mantra(tmp_path_factory):
+def custom_mantra(request, tmp_path_factory):
+    chain = request.config.getoption("chain_config")
     path = tmp_path_factory.mktemp("min-gas-price")
     yield from setup_custom_mantra(
-        path, 26530, Path(__file__).parent / "configs/min_gas_price.jsonnet"
+        path,
+        26530,
+        Path(__file__).parent / "configs/min_gas_price.jsonnet",
+        chain=chain,
     )
 
 
 @pytest.fixture(scope="module")
-def custom_mantra_lte(tmp_path_factory):
+def custom_mantra_lte(request, tmp_path_factory):
+    chain = request.config.getoption("chain_config")
     path = tmp_path_factory.mktemp("min-gas-price-lte")
     yield from setup_custom_mantra(
-        path, 26560, Path(__file__).parent / "configs/min_gas_price_lte.jsonnet"
+        path,
+        26560,
+        Path(__file__).parent / "configs/min_gas_price_lte.jsonnet",
+        chain=chain,
     )
 
 
@@ -57,7 +68,7 @@ def test_dynamic_fee_tx(custom_cluster):
     amount = 10000
     before = w3.eth.get_balance(ADDRS["community"])
     tip_price = 1000000
-    max_price = 100000000000000 + tip_price
+    max_price = 400000000000000 + tip_price
     tx = {
         "to": "0x0000000000000000000000000000000000000000",
         "value": amount,
@@ -80,7 +91,7 @@ def test_dynamic_fee_tx(custom_cluster):
     # check the next block's base fee is adjusted accordingly
     w3_wait_for_block(w3, txreceipt.blockNumber + 1)
     fee = w3.eth.get_block(txreceipt.blockNumber + 1).baseFeePerGas
-    params = cli.get_params("feemarket")["params"]
+    params = cli.get_params("feemarket")
     assert fee == adjust_base_fee(
         blk.baseFeePerGas, blk.gasLimit, blk.gasUsed, params
     ), fee
@@ -98,7 +109,7 @@ def test_base_fee_adjustment(custom_cluster):
 
     blk = w3.eth.get_block(begin)
     parent_fee = blk.baseFeePerGas
-    params = cli.get_params("feemarket")["params"]
+    params = cli.get_params("feemarket")
 
     for i in range(3):
         fee = w3.eth.get_block(begin + 1 + i).baseFeePerGas
@@ -108,5 +119,5 @@ def test_base_fee_adjustment(custom_cluster):
     call = w3.provider.make_request
     res = call("eth_feeHistory", [2, "latest", []])["result"]["baseFeePerGas"]
     # nextBaseFee should align max with minGasPrice in eth_feeHistory
-    min_gas_price = max(float(params.get("min_gas_price", 0)) * WEI_PER_UOM, 1)
+    min_gas_price = max(float(params.get("min_gas_price", 0)) * WEI_PER_DENOM, 1)
     assert all(fee == hex(int(min_gas_price)) for fee in res), res

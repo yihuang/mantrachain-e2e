@@ -16,17 +16,28 @@ This repository contains end-to-end integration tests for the MANTRA Chain proje
 
 ### Running Tests
 
-1. **Build environment and dependencies:**
+1. **Create env file from template:**
    ```sh
-   nix-shell integration_tests/shell.nix 
+   cp scripts/env.template scripts/.env
+   cp .envrc.example .envrc
    ```
 
-2. **Configuration (config to set up local nodes):**
+2. **Build environment and dependencies:**
    ```sh
-   jsonnet integration_tests/configs/default.jsonnet | jq
+   nix develop
+   cd integration_tests && uv sync
    ```
 
-3. **Run tests:**
+3. **Configuration (config to set up local nodes):**
+   ```sh
+   jsonnet --ext-str CHAIN_CONFIG=mantrachaind integration_tests/configs/default.jsonnet | jq
+   ```
+   or config with other binary 
+   ```sh
+   jsonnet --ext-str CHAIN_CONFIG=evmd integration_tests/configs/default.jsonnet | jq
+   ```
+
+4. **Run tests:**
    ensure all git submodules are initialized and updated:
    ```sh
    git submodule update --init --depth 1 --recursive
@@ -44,6 +55,12 @@ This repository contains end-to-end integration tests for the MANTRA Chain proje
    or more specific
    ```sh
    pytest -vv -s test_basic.py::test_multisig
+   ```
+   or specific binary
+   ```sh
+   cd evmd; go build -tags pebbledb -o ../build/evmd ./cmd/evmd; cd ..
+   cp build/evmd $GOROOT/bin
+   pytest -vv -s test_basic.py::test_simple --chain-config evmd
    ```
 
 ### Nix Build Targets
@@ -64,6 +81,7 @@ This repository contains end-to-end integration tests for the MANTRA Chain proje
 - `test_fee_history.py`: Tests eth_feeHistory with various scenarios including concurrent requests, parameter changes, and edge cases like beyond-head blocks and invalid percentiles.
 - `test_contract.py`: Tests deploy contract with create2 create3 and multicall.
 - `test_ibc.py` Tests IBC cross-chain transactions covering OnRecvPacket packet handling (token pairs with IBC coins, tokenfactory coins, native ERC20 tokens) and callback contract interactions.
+- `test_wasm.py`: Tests WASM contract upload, instantiation and execution flows.
 
 ## Notes
 

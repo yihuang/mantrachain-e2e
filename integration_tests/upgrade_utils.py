@@ -6,24 +6,34 @@ import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 
+import tomlkit
 from pystarport import ports
 from pystarport.cluster import SUPERVISOR_CONFIG_FILE
+from pystarport.utils import wait_for_block, wait_for_port
 
 from .network import setup_custom_mantra
 from .utils import (
+    DEFAULT_DENOM,
+    EVM_CHAIN_ID,
     approve_proposal,
     bech32_to_eth,
     edit_ini_sections,
     send_transaction,
-    wait_for_block,
-    wait_for_port,
 )
 
+LEGACY_DENOM = "uom"
+LEGACY_EXTENDED_DENOM = "aom"
 
-def do_upgrade(c, plan_name, target, gas_prices="0.8uom"):
+
+def do_upgrade(c, plan_name, target, denom=DEFAULT_DENOM, scale=1):
     print(f"upgrade {plan_name} height: {target}")
     cli = c.cosmos_cli()
     base_port = c.base_port(0)
+    rsp = {}
+    price = 100000000 * scale
+    min_deposit = 1 * scale
+    gas_prices = f"{price}{denom}"
+
     rsp = cli.software_upgrade(
         "community",
         {
@@ -32,20 +42,20 @@ def do_upgrade(c, plan_name, target, gas_prices="0.8uom"):
             "note": "ditto",
             "upgrade-height": target,
             "summary": "summary",
-            "deposit": "1uom",
+            "deposit": f"{min_deposit}{denom}",
         },
         gas=300000,
         gas_prices=gas_prices,
     )
     assert rsp["code"] == 0, rsp["raw_log"]
-    approve_proposal(c, rsp["events"])
+    approve_proposal(c, rsp["events"], gas_prices=gas_prices)
 
     # update cli chain binary
     c.chain_binary = (
         Path(c.chain_binary).parent.parent.parent / f"{plan_name}/bin/mantrachaind"
     )
     # block should pass the target height
-    wait_for_block(c.cosmos_cli(), target + 2, timeout=480)
+    wait_for_block(c.cosmos_cli(), target + 1)
     wait_for_port(ports.rpc_port(base_port))
     return c.cosmos_cli()
 
@@ -86,27 +96,34 @@ def post_init(path, base_port, config, genesis):
     )
 
 
-def setup_mantra_upgrade(tmp_path_factory, nix_name, cfg_name, genesis):
-    path = tmp_path_factory.mktemp("upgrade")
-    port = 26200
-    configdir = Path(__file__).parent
+def build_upgrade_package(upgrades_dir, nix_file, output="./result"):
     cmd = [
         "nix-build",
-        configdir / f"configs/{nix_name}.nix",
+        nix_file,
+        "-o",
+        output,
     ]
-    if os.environ.get("INCLUDE_MANTRACHAIND", "true").lower() != "true":
-        cmd += ["--arg", "includeMantrachaind", "false"]
+    use_lite_mode = os.environ.get("NIX_LITE_MODE", "").lower() == "true"
+    cmd += ["--arg", "useLiteMode", str(use_lite_mode).lower()]
+    print(f"build {'lite' if use_lite_mode else 'full'} mode")
     print(*cmd)
     subprocess.run(cmd, check=True)
-
     # copy the content so the new directory is writable.
-    upgrades = path / "upgrades"
-    shutil.copytree("./result", upgrades)
+    shutil.copytree(output, upgrades_dir)
     mod = stat.S_IRWXU
-    upgrades.chmod(mod)
-    for d in upgrades.iterdir():
+    upgrades_dir.chmod(mod)
+    for d in upgrades_dir.iterdir():
         d.chmod(mod)
+    return cmd
 
+
+def setup_mantra_upgrade(
+    tmp_path_factory, nix_name, cfg_name, genesis, chain, port=26200
+):
+    path = tmp_path_factory.mktemp("upgrade")
+    configdir = Path(__file__).parent
+    upgrades = path / "upgrades"
+    build_upgrade_package(upgrades, configdir / f"configs/{nix_name}.nix")
     # init with genesis binary
     with contextmanager(setup_custom_mantra)(
         path,
@@ -115,6 +132,7 @@ def setup_mantra_upgrade(tmp_path_factory, nix_name, cfg_name, genesis):
         post_init=post_init,
         chain_binary=str(upgrades / f"{genesis}/bin/mantrachaind"),
         genesis=genesis,
+        chain=chain,
     ) as mantra:
         yield mantra
 
@@ -167,3 +185,13 @@ def check_basic_eth_tx(w3, contract, from_acc, to, msg):
         key=from_acc.key,
     )
     assert receipt.status == 1
+
+
+def patch_app_evm_chain_ids(c):
+    for i in range(3):
+        path = c.cosmos_cli(i=i).data_dir / "config/app.toml"
+        cfg = tomlkit.parse(path.read_text())
+        cfg["evm"] = {
+            "evm-chain-id": EVM_CHAIN_ID,
+        }
+        path.write_text(tomlkit.dumps(cfg))

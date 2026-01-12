@@ -60,7 +60,7 @@ def normalize(lst):
 @pytest.mark.slow
 def test_history_serve_window(mantra, tmp_path):
     cli = mantra.cosmos_cli()
-    p = cli.get_params("evm")["params"]
+    p = cli.get_params("evm")
     updated = 4096
     p["history_serve_window"] = updated
     submit_gov_proposal(
@@ -73,8 +73,9 @@ def test_history_serve_window(mantra, tmp_path):
                 "params": p,
             },
         ],
+        gas=300_000,
     )
-    p = cli.get_params("evm")["params"]
+    p = cli.get_params("evm")
     assert int(p["history_serve_window"]) == int(updated), p
 
 
@@ -104,7 +105,7 @@ async def test_submit_send_enabled(mantra, tmp_path):
     send_enable = [
         {"denom": DEFAULT_DENOM, "enabled": True},
         {"denom": denom},
-        {"denom": erc20_denom},
+        {"denom": erc20_denom, "enabled": True},
     ]
     submit_gov_proposal(
         mantra,
@@ -124,15 +125,16 @@ async def test_submit_send_enabled(mantra, tmp_path):
         gas=gas,
     )
     assert normalize(cli.query_bank_send()) == normalize(send_enable)
+    disabled_err = "send transactions are disabled"
+
+    # compare balance after convert all erc20
     rsp = cli.convert_erc20(WETH_ADDRESS, total, _from=sender, gas=999999)
     assert rsp["code"] == 0, rsp["raw_log"]
     assert cli.balance(sender, erc20_denom) == total
     assert await ERC20.fns.balanceOf(community).call(w3, to=WETH_ADDRESS) == 0
 
     rsp = cli.transfer(sender, receiver, f"1{erc20_denom}")
-    disabled_err = "send transactions are disabled"
-    assert rsp["code"] != 0
-    assert disabled_err in rsp["raw_log"]
+    assert rsp["code"] == 0
 
     rsp = cli.transfer(sender, receiver, f"1{denom}")
     assert rsp["code"] != 0

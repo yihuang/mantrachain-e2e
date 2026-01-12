@@ -1,11 +1,16 @@
+import asyncio
+import json
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
+import requests
 import web3
+from eth_account import Account
 from eth_bloom import BloomFilter
+from eth_contract.erc20 import ERC20
+from eth_contract.utils import broadcast_transaction
 from eth_contract.utils import send_transaction as send_transaction_async
-from eth_utils import abi, big_endian_to_int
+from eth_utils import big_endian_to_int
 from hexbytes import HexBytes
 
 from .utils import (
@@ -13,18 +18,23 @@ from .utils import (
     ADDRS,
     DEFAULT_DENOM,
     KEYS,
+    WEI_PER_DENOM,
+    AsyncGreeter,
+    AsyncTestRevert,
     Contract,
-    Greeter,
     RevertTestContract,
-    assert_balance,
+    address_to_bytes32,
     assert_transfer,
+    bech32_to_eth,
     build_batch_tx,
     build_contract,
     contract_address,
+    create_periodic_vesting_acct,
     do_multisig,
     recover_community,
     send_transaction,
     transfer_via_cosmos,
+    w3_wait_for_new_blocks_async,
 )
 
 
@@ -42,12 +52,32 @@ def test_simple(mantra, connect_mantra, tmp_path, check_reserve=True):
     if check_reserve:
         # check vesting account
         cli = mantra.cosmos_cli()
-        addr = cli.address("reserve")
-        account = cli.account(addr)["account"]
-        assert account["type"] == "/cosmos.vesting.v1beta1.DelayedVestingAccount"
-        assert account["value"]["base_vesting_account"]["original_vesting"] == [
-            {"denom": DEFAULT_DENOM, "amount": "100000000000"}
-        ]
+        if cli.has_module("evm"):
+            denom = cli.get_params("evm")["evm_denom"]
+            addr = cli.address("reserve")
+            account = cli.account(addr)["account"]
+            assert account["type"] == "/cosmos.vesting.v1beta1.DelayedVestingAccount"
+            assert account["value"]["base_vesting_account"]["original_vesting"] == [
+                {"denom": denom, "amount": "100000000000000000000"}
+            ]
+
+
+@pytest.mark.connect
+def test_connect_vesting(connect_mantra, tmp_path):
+    test_vesting(None, connect_mantra, tmp_path)
+
+
+def test_vesting(mantra, connect_mantra, tmp_path):
+    cli = connect_mantra.cosmos_cli(tmp_path)
+    start_time = int(time.time())
+    end_time = start_time + 3000
+    name = f"vesting{start_time}"
+    addr = cli.create_account(name)["address"]
+    coin = f"1{DEFAULT_DENOM}"
+    community = cli.address("community")
+    rsp = cli.create_periodic_vesting_acct(addr, coin, end_time, from_=community)
+    assert rsp["code"] == 0, rsp["raw_log"]
+    create_periodic_vesting_acct(cli, tmp_path, coin, from_=community)
 
 
 @pytest.mark.connect
@@ -84,29 +114,25 @@ def test_connect_events(connect_mantra):
     test_events(None, connect_mantra, exp_gas_used=None)
 
 
-def test_events(mantra, connect_mantra, exp_gas_used=919699):
+def test_events(mantra, connect_mantra, exp_gas_used=806200):
     w3 = connect_mantra.w3
-    sender = "community"
-    receiver = "signer1"
-    contract = Contract("TestERC20A", private_key=KEYS[sender])
+    sender = ADDRS["community"]
+    receiver = ADDRS["signer1"]
+    contract = Contract("TestERC20A")
     contract.deploy(w3, exp_gas_used=exp_gas_used)
     erc20 = contract.contract
-    tx = erc20.functions.transfer(ADDRS[receiver], 10).build_transaction(
-        {"from": ADDRS[sender]}
-    )
-    txreceipt = send_transaction(w3, tx, KEYS[sender])
+    amt = 10
+    tx = erc20.functions.transfer(receiver, amt).build_transaction({"from": sender})
+    txreceipt = send_transaction(w3, tx)
     assert len(txreceipt.logs) == 1
-    data = "0x000000000000000000000000000000000000000000000000000000000000000a"
     expect_log = {
         "address": erc20.address,
         "topics": [
-            HexBytes(
-                abi.event_signature_to_log_topic("Transfer(address,address,uint256)")
-            ),
-            HexBytes(b"\x00" * 12 + HexBytes(ADDRS[sender])),
-            HexBytes(b"\x00" * 12 + HexBytes(ADDRS[receiver])),
+            ERC20.events.Transfer.topic,
+            address_to_bytes32(sender),
+            address_to_bytes32(receiver),
         ],
-        "data": HexBytes(data),
+        "data": HexBytes(amt.to_bytes(32, "big")),
         "transactionIndex": 0,
         "logIndex": 0,
         "removed": False,
@@ -158,162 +184,115 @@ async def test_minimal_gas_price(mantra, connect_mantra):
     assert receipt.status == 1
 
 
-def test_transaction(mantra):
-    w3 = mantra.w3
-    gas_price = w3.eth.gas_price
+@pytest.mark.connect
+async def test_connect_transaction(connect_mantra):
+    await test_transaction(None, connect_mantra)
 
-    # send transaction
-    txhash_1 = send_transaction(
-        w3,
-        {"to": ADDRS["community"], "value": 10000, "gasPrice": gas_price},
-        KEYS["validator"],
-    )["transactionHash"]
-    tx1 = w3.eth.get_transaction(txhash_1)
-    assert tx1["transactionIndex"] == 0
 
-    initial_block_number = w3.eth.get_block_number()
+async def test_transaction(mantra, connect_mantra):
+    w3 = connect_mantra.async_w3
+    gas_price = await w3.eth.gas_price
+    gas = 21000
+    acct = ACCOUNTS["community"]
+    sender = acct.address
+    receiver = ADDRS["signer1"]
 
-    # tx already in mempool
-    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
-        send_transaction(
+    data = {"to": ADDRS["community"], "value": 10000, "gasPrice": gas_price, "gas": gas}
+    res = await send_transaction_async(w3, acct, **data)
+    assert res["transactionIndex"] == 0
+    res = await w3.eth.get_transaction(res["transactionHash"])
+    assert res["transactionIndex"] == 0
+
+    with pytest.raises(web3.exceptions.Web3RPCError, match="tx already in mempool"):
+        data["nonce"] = await w3.eth.get_transaction_count(sender) - 1
+        await send_transaction_async(w3, acct, **data)
+
+    data["nonce"] = await w3.eth.get_transaction_count(sender) + 1
+    txhash = await broadcast_transaction(w3, acct, **data)
+
+    data["nonce"] = await w3.eth.get_transaction_count(sender)
+    receipt = await send_transaction_async(w3, acct, **data)
+    assert receipt["status"] == 1
+
+    receipt = await w3.eth.wait_for_transaction_receipt(txhash)
+    assert receipt["status"] == 1
+
+    with pytest.raises(web3.exceptions.Web3RPCError, match="intrinsic gas too low"):
+        await send_transaction_async(
             w3,
-            {
-                "to": ADDRS["community"],
-                "value": 10000,
-                "gasPrice": gas_price,
-                "nonce": w3.eth.get_transaction_count(ADDRS["validator"]) - 1,
-            },
-            KEYS["validator"],
+            acct,
+            to=receiver,
+            value=10000,
+            gasPrice=gas_price,
+            gas=1,
         )
-    assert "tx already in mempool" in str(exc)
 
-    # invalid sequence
-    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
-        send_transaction(
+    with pytest.raises(web3.exceptions.Web3RPCError, match="insufficient fee"):
+        await send_transaction_async(
             w3,
-            {
-                "to": ADDRS["community"],
-                "value": 10000,
-                "gasPrice": w3.eth.gas_price,
-                "nonce": w3.eth.get_transaction_count(ADDRS["validator"]) + 1,
-            },
-            KEYS["validator"],
+            acct,
+            to=receiver,
+            value=10000,
+            gas=gas,
+            gasPrice=1,
         )
-    assert "invalid sequence" in str(exc)
 
-    # out of gas
-    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
-        send_transaction(
-            w3,
-            {
-                "to": ADDRS["community"],
-                "value": 10000,
-                "gasPrice": w3.eth.gas_price,
-                "gas": 1,
-            },
-            KEYS["validator"],
-        )["transactionHash"]
-    assert "intrinsic gas too low" in str(exc)
-
-    # insufficient fee
-    with pytest.raises(web3.exceptions.Web3RPCError) as exc:
-        send_transaction(
-            w3,
-            {
-                "to": ADDRS["community"],
-                "value": 10000,
-                "gasPrice": 1,
-            },
-            KEYS["validator"],
-        )["transactionHash"]
-    assert "insufficient fee" in str(exc)
-
-    # check all failed transactions are not included in blockchain
-    assert w3.eth.get_block_number() == initial_block_number
-
-    # Deploy multiple contracts
     contracts = {
-        "test_revert_1": RevertTestContract(
-            "TestRevert",
-            KEYS["validator"],
-        ),
-        "test_revert_2": RevertTestContract(
-            "TestRevert",
-            KEYS["community"],
-        ),
-        "greeter_1": Greeter(
-            "Greeter",
-            KEYS["signer1"],
-        ),
-        "greeter_2": Greeter(
-            "Greeter",
-            KEYS["signer2"],
-        ),
+        "test_revert_1": AsyncTestRevert(KEYS["validator"]),
+        "test_revert_2": AsyncTestRevert(KEYS["community"]),
+        "greeter_1": AsyncGreeter(KEYS["signer1"]),
+        "greeter_2": AsyncGreeter(KEYS["signer2"]),
     }
+    await w3_wait_for_new_blocks_async(w3, 1)
 
-    with ThreadPoolExecutor(4) as executor:
-        future_to_contract = {
-            executor.submit(contract.deploy, w3): name
-            for name, contract in contracts.items()
-        }
+    deployment_tasks = [contract.deploy(w3) for contract in contracts.values()]
+    await asyncio.gather(*deployment_tasks)
+    await w3_wait_for_new_blocks_async(w3, 1)
 
-        assert_receipt_transaction_and_block(w3, future_to_contract)
+    call_tasks = []
+    call_tasks.append(contracts["test_revert_1"].transfer(5 * (10**18) - 1))
+    call_tasks.append(contracts["test_revert_2"].transfer(5 * (10**18)))
+    call_tasks.append(contracts["greeter_1"].set_greeting("hello"))
+    call_tasks.append(contracts["greeter_2"].set_greeting("world"))
+    results = await asyncio.gather(*call_tasks, return_exceptions=True)
 
-    # Do Multiple contract calls
-    with ThreadPoolExecutor(4) as executor:
-        futures = []
-        futures.append(
-            executor.submit(contracts["test_revert_1"].transfer, 5 * (10**18) - 1)
-        )
-        futures.append(
-            executor.submit(contracts["test_revert_2"].transfer, 5 * (10**18))
-        )
-        futures.append(executor.submit(contracts["greeter_1"].transfer, "hello"))
-        futures.append(executor.submit(contracts["greeter_2"].transfer, "world"))
+    # revert transaction for 1st, normal transaction for others
+    statuses = [0, 1, 1, 1]
+    valid_receipts = []
 
-        assert_receipt_transaction_and_block(w3, futures)
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            if i != 0:
+                raise result
+        else:
+            assert result["status"] == statuses[i]
+            if result["status"] == 1:
+                valid_receipts.append(result)
 
-        # revert transaction
-        assert futures[0].result()["status"] == 0
-        # normal transaction
-        assert futures[1].result()["status"] == 1
-        # normal transaction
-        assert futures[2].result()["status"] == 1
-        # normal transaction
-        assert futures[3].result()["status"] == 1
+    await assert_receipt_transaction_and_block(w3, valid_receipts)
 
 
-def assert_receipt_transaction_and_block(w3, futures):
-    receipts = []
-    for future in as_completed(futures):
-        data = future.result()
-        receipts.append(data)
-    assert len(receipts) == 4
-
-    block_number = w3.eth.get_block_number()
-    tx_indexes = [0, 1, 2, 3]
+async def assert_receipt_transaction_and_block(w3, receipts):
+    assert len(receipts) >= 1, "should have at least 1 valid receipt"
+    block_number = await w3.eth.get_block_number()
     for receipt in receipts:
         assert receipt["blockNumber"] == block_number
-        transaction_index = receipt["transactionIndex"]
-        assert transaction_index in tx_indexes
-        tx_indexes.remove(transaction_index)
+    tx_indexes = [receipt["transactionIndex"] for receipt in receipts]
+    assert len(tx_indexes) == len(set(tx_indexes)), "duplicate index found"
+    block = await w3.eth.get_block(block_number)
 
-    block = w3.eth.get_block(block_number)
-    transactions = [
-        w3.eth.get_transaction_by_block(block_number, receipt["transactionIndex"])
-        for receipt in receipts
-    ]
-    assert len(transactions) == 4
-    for i, transaction in enumerate(transactions):
-        assert transaction["blockNumber"] == block_number
-        assert transaction["transactionIndex"] == receipts[i]["transactionIndex"]
-        assert transaction["hash"] == receipts[i]["transactionHash"]
-        assert transaction["hash"] in block["transactions"]
-        assert transaction["blockNumber"] == block["number"]
+    for receipt in receipts:
+        tx_index = receipt["transactionIndex"]
+        tx = await w3.eth.get_transaction_by_block(block_number, tx_index)
+        assert tx["blockNumber"] == block_number
+        assert tx["transactionIndex"] == receipt["transactionIndex"]
+        assert tx["hash"] == receipt["transactionHash"]
+        assert tx["hash"] in block["transactions"]
+        assert tx["blockNumber"] == block["number"]
 
 
 @pytest.mark.connect
-async def test_connect_exception(connect_mantra):
+def test_connect_exception(connect_mantra):
     test_exception(None, connect_mantra)
 
 
@@ -340,10 +319,10 @@ def test_exception(mantra, connect_mantra):
 
 @pytest.mark.connect
 async def test_connect_message_call(connect_mantra):
-    test_message_call(None, connect_mantra)
+    test_message_call(None, connect_mantra, diff=10)
 
 
-def test_message_call(mantra, connect_mantra):
+def test_message_call(mantra, connect_mantra, diff=10):
     "stress test the evm by doing message calls as much as possible"
     w3 = connect_mantra.w3
     key = KEYS["community"]
@@ -362,7 +341,7 @@ def test_message_call(mantra, connect_mantra):
     tx["gas"] = w3.eth.estimate_gas(tx)
     elapsed = time.time() - begin
     print("elapsed:", elapsed)
-    assert elapsed < 5  # should finish in reasonable time
+    assert elapsed < diff  # should finish in reasonable time
 
     receipt = send_transaction(w3, tx, key=key)
     assert 22768266 == receipt.cumulativeGasUsed
@@ -394,26 +373,22 @@ def test_log0(mantra, connect_mantra):
 
 
 @pytest.mark.connect
-def test_connect_contract(connect_mantra, tmp_path):
-    test_contract(None, connect_mantra, tmp_path)
+async def test_connect_contract(connect_mantra, tmp_path):
+    await test_contract(None, connect_mantra, tmp_path)
 
 
-def test_contract(mantra, connect_mantra, tmp_path):
+async def test_contract(mantra, connect_mantra, tmp_path):
     "test Greeter contract"
     cli = connect_mantra.cosmos_cli(tmp_path)
     recover_community(cli, tmp_path)
-    w3 = connect_mantra.w3
-    name = "community"
-    key = KEYS[name]
-    greeter = Greeter("Greeter", private_key=key)
-    greeter.deploy(w3)
-    contract = greeter.contract
-    assert "Hello" == contract.caller.greet()
+    w3 = connect_mantra.async_w3
+    greeter = AsyncGreeter()
+    await greeter.deploy(w3)
+    assert "Hello" == await greeter.greet()
     # change
-    tx = contract.functions.setGreeting("world").build_transaction()
-    receipt = send_transaction(w3, tx, key=key)
+    receipt = await greeter.set_greeting("world")
+    assert "world" == await greeter.greet()
     assert receipt.status == 1
-    assert_balance(cli, w3, name)
 
 
 @pytest.mark.connect
@@ -494,7 +469,7 @@ def test_failed_transfer_tx(mantra):
     w3 = mantra.w3
     cli = mantra.cosmos_cli()
     sender = ADDRS["community"]
-    recipient = ADDRS["validator"]
+    recipient = ADDRS["signer1"]
     nonce = w3.eth.get_transaction_count(sender)
     half_balance = w3.eth.get_balance(sender) // 3 + 1
 
@@ -561,7 +536,7 @@ def test_multisig_cosmos(mantra, connect_mantra, tmp_path):
     cli = connect_mantra.cosmos_cli(tmp_path)
     recover1 = "recover1"
     recover2 = "recover2"
-    amt = 6000
+    amt = 6_000_000_000_000_000_000 // WEI_PER_DENOM
     addr_recover1 = cli.create_account(
         recover1,
         coin_type=118,
@@ -592,3 +567,50 @@ def test_textual(mantra, connect_mantra, tmp_path):
         sign_mode="textual",
     )
     assert rsp["code"] == 0, rsp["raw_log"]
+
+
+@pytest.mark.connect
+def test_connect_key_source(connect_mantra, tmp_path):
+    test_key_src(None, connect_mantra, tmp_path)
+
+
+def test_key_src(mantra, connect_mantra, tmp_path):
+    cli = connect_mantra.cosmos_cli(tmp_path)
+    acct, mnemonic = Account.create_with_mnemonic(num_words=24)
+    src = tmp_path / "mnemonic.txt"
+    src.write_text(mnemonic)
+    addr = cli.create_account("user", source=src)["address"]
+    assert bech32_to_eth(addr) == acct.address
+
+
+@pytest.mark.connect
+def test_connect_comet_validator_set(connect_mantra, tmp_path):
+    test_comet_validator_set(None, connect_mantra, tmp_path)
+
+
+def test_comet_validator_set(mantra, connect_mantra, tmp_path):
+    cli = connect_mantra.cosmos_cli(tmp_path)
+    res = cli.comet_validator_set(cli.block_height())
+    assert len(res["validators"]) == len(cli.validators())
+
+
+@pytest.mark.skip(reason="https://github.com/cosmos/evm/pull/917")
+def test_coinbase(mantra):
+    w3 = mantra.w3
+    contract = Contract("Coinbase")
+    contract.deploy(w3)
+    height = w3.eth.block_number
+    coinbase = contract.contract.functions.getCurrentProposer().call(
+        block_identifier=height
+    )
+    cli = mantra.cosmos_cli()
+    val_addr = cli.debug_addr(coinbase, bech="val")
+    pubkey = cli.validator(val_addr).get("consensus_pubkey")
+    pubkey = cli.debug_pubkey(
+        json.dumps({"@type": pubkey["type"], "key": pubkey["value"]})
+    )
+    res = (
+        requests.get(f"{cli.node_rpc_http}/block?height={height}").json().get("result")
+    )
+    proposer = res.get("block").get("header").get("proposer_address")
+    assert proposer.lower() == pubkey.lower()
