@@ -33,7 +33,7 @@ elif [[ "$TESTS_TO_RUN" == "connect" ]]; then
   cmd=$(build_pytest_cmd "uv run pytest -vv -s -m connect")
 elif [[ "$TESTS_TO_RUN" == "evmd" ]]; then
   echo "run evmd-specific tests"
-  cmd=$(build_pytest_cmd "uv run pytest -vvv -s test_erc20_precompile.py")
+  cmd=$(build_pytest_cmd "uv run pytest -vvv -s -m evmd")
 else
   echo "run tests matching $TESTS_TO_RUN"
   cmd=$(build_pytest_cmd "uv run pytest -vv -s -m \"$TESTS_TO_RUN\"")

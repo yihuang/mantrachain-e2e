@@ -16,6 +16,8 @@ from eth_utils import to_checksum_address
 
 from .utils import ACCOUNTS, ADDRS, retry_on_nonce_mismatch
 
+pytestmark = [pytest.mark.evmd, pytest.mark.asyncio]
+
 GAS_PRICE = 1000000000000
 WOM = to_checksum_address("0x4200000000000000000000000000000000000006")
 ERC20Bin = bytes.fromhex(
