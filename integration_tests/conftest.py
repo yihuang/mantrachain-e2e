@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from .network import (
@@ -10,11 +12,11 @@ from .network import (
 def pytest_addoption(parser):
     parser.addoption(
         "--chain-config",
-        default="mantrachaind",
+        default=os.getenv("CHAIN_CONFIG", "mantrachaind"),
         action="store",
         metavar="CHAIN_CONFIG",
         required=False,
-        help="Specify chain config to test",
+        help="Specify chain config to test (default: $CHAIN_CONFIG or mantrachaind)",
     )
 
 
