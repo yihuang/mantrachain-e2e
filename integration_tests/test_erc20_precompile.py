@@ -14,7 +14,7 @@ from eth_contract.erc20 import ERC20
 from eth_contract.multicall3 import multicall
 from eth_utils import to_checksum_address
 
-from .utils import ACCOUNTS, ADDRS, retry_on_nonce_mismatch
+from .utils import ACCOUNTS, ADDRS, assert_erc20_event, retry_on_nonce_mismatch
 
 pytestmark = [pytest.mark.evmd, pytest.mark.asyncio]
 
@@ -63,34 +63,27 @@ async def deploy_erc20_wrapper(w3):
     return token, initcode
 
 
-async def test_metadata_for_registered_denom(mantra):
+async def test_metadata_for_denom(mantra):
     w3 = mantra.async_w3
     await ensure_multicall3_deployed(w3, ACCOUNTS["validator"], gasPrice=GAS_PRICE)
 
+    # registered denom
     calls = [
         (BANK_PRECOMPILE, BANK.fns.name(TEST_DENOM)),
         (BANK_PRECOMPILE, BANK.fns.symbol(TEST_DENOM)),
         (BANK_PRECOMPILE, BANK.fns.decimals(TEST_DENOM)),
+        (BANK_PRECOMPILE, BANK.fns.totalSupply(TEST_DENOM)),
     ]
-    name, symbol, decimals = await multicall(w3, calls)
+    name, symbol, decimals, supply = await multicall(w3, calls)
 
     assert name == EXPECTED_NAME
     assert symbol == EXPECTED_SYMBOL
     assert decimals == EXPECTED_DECIMALS
-
-
-async def test_metadata_for_unregistered_denom(mantra):
-    w3 = mantra.async_w3
-    unknown_denom = "unknowndenom"
-
-    with pytest.raises(web3.exceptions.ContractLogicError):
-        await BANK.fns.name(unknown_denom).call(w3, to=BANK_PRECOMPILE)
-
-
-async def test_total_supply(mantra):
-    w3 = mantra.async_w3
-    supply = await BANK.fns.totalSupply(TEST_DENOM).call(w3, to=BANK_PRECOMPILE)
     assert supply == INITIAL_SUPPLY
+
+    # unregistered denom
+    with pytest.raises(web3.exceptions.ContractLogicError):
+        await BANK.fns.name("unknowndenom").call(w3, to=BANK_PRECOMPILE)
 
 
 @pytest.mark.parametrize(
@@ -107,15 +100,14 @@ async def test_balance_of(mantra, user_key, expected_balance):
     assert balance == expected_balance
 
 
-# Authorization rules for bank precompile transferFrom:
-# 1. msg.sender == from: User can move their own funds for any denom.
-async def test_self_transfer(mantra):
-    # msg.sender can transfer their own funds
+# Only owner or authorized wrapper can call transferFrom.
+async def test_bank_transfer_authorization(mantra):
     w3 = mantra.async_w3
     user = ADDRS["community"]
     recipient = ADDRS["validator"]
     amount = 1_000
 
+    # self transfer should succeed
     balance_before = await BANK.fns.balanceOf(recipient, TEST_DENOM).call(
         w3, to=BANK_PRECOMPILE
     )
@@ -129,35 +121,25 @@ async def test_self_transfer(mantra):
     )
     assert balance_after == balance_before + amount
 
-
-async def test_unauthorized_transfer_fails(mantra):
-    # Non-owner, non-wrapper cannot move someone else's funds.
-    w3 = mantra.async_w3
-    victim = ADDRS["community"]
-    recipient = ADDRS["validator"]
-    amount = 1_000
-
+    # unauthorized transfer should fail
     with pytest.raises(web3.exceptions.ContractLogicError):
-        await BANK.fns.transferFrom(victim, recipient, amount, TEST_DENOM).transact(
+        await BANK.fns.transferFrom(user, recipient, amount, TEST_DENOM).transact(
             w3, ACCOUNTS["validator"], to=BANK_PRECOMPILE, gasPrice=GAS_PRICE
         )
 
 
-# 2. wrapper is the deterministic authorized contract for its denom
-# and can call bank transferFrom on behalf of users.
-async def test_deploy_erc20_wrapper(mantra):
+# Wrapper is the deterministic authorized contract for its denom.
+async def test_erc20_wrapper_deploy_and_metadata(mantra):
     w3 = mantra.async_w3
-    token_addr, initcode = await deploy_erc20_wrapper(w3)
-    code = await w3.eth.get_code(token_addr)
+    token, initcode = await deploy_erc20_wrapper(w3)
+
+    # verify deployment
+    code = await w3.eth.get_code(token)
     assert code, "ERC20 wrapper should be deployed"
     expected_addr = create2_address(initcode, ERC20Salt)
-    assert token_addr == expected_addr
+    assert token == expected_addr
 
-
-# msg.sender is the deterministic ERC20 wrapper for that denom
-async def test_erc20_metadata_via_wrapper(mantra):
-    w3 = mantra.async_w3
-    token, _ = await deploy_erc20_wrapper(w3)
+    # verify metadata via wrapper
     await ensure_multicall3_deployed(w3, ACCOUNTS["validator"], gasPrice=GAS_PRICE)
     calls = [
         (token, ERC20.fns.name()),
@@ -172,34 +154,28 @@ async def test_erc20_metadata_via_wrapper(mantra):
     assert supply == INITIAL_SUPPLY
 
 
-async def test_erc20_balance_via_wrapper(mantra):
-    w3 = mantra.async_w3
-    token, _ = await deploy_erc20_wrapper(w3)
-    user = ADDRS["community"]
-    balance = await ERC20.fns.balanceOf(user).call(w3, to=token)
-    assert balance > 0  # may be < INITIAL_SUPPLY due to earlier tests
-
-
 async def test_erc20_transfer(mantra):
     w3 = mantra.async_w3
     token, _ = await deploy_erc20_wrapper(w3)
     sender = ADDRS["community"]
     recipient = ADDRS["validator"]
     amount = 5_000
+
     sender_before = await ERC20.fns.balanceOf(sender).call(w3, to=token)
     recipient_before = await ERC20.fns.balanceOf(recipient).call(w3, to=token)
+
     receipt = await ERC20.fns.transfer(recipient, amount).transact(
         w3, ACCOUNTS["community"], to=token, gasPrice=GAS_PRICE
     )
     assert receipt.status == 1
+
     sender_after = await ERC20.fns.balanceOf(sender).call(w3, to=token)
     recipient_after = await ERC20.fns.balanceOf(recipient).call(w3, to=token)
     assert sender_after == sender_before - amount
     assert recipient_after == recipient_before + amount
 
 
-# Allowance is tracked in the wrapper; after checking it, the wrapper
-# calls the bank precompile transferFrom.
+# Wrapper tracks allowance and delegates to bank precompile.
 async def test_erc20_approve_and_transfer_from(mantra):
     w3 = mantra.async_w3
     token, _ = await deploy_erc20_wrapper(w3)
@@ -209,6 +185,12 @@ async def test_erc20_approve_and_transfer_from(mantra):
     recipient = ADDRS["validator"]
     approve_amount = 10_000
     transfer_amount = 5_000
+
+    # transfer without allowance should fail
+    with pytest.raises(web3.exceptions.ContractLogicError):
+        await ERC20.fns.transferFrom(owner, recipient, transfer_amount).transact(
+            w3, spender, to=token, gasPrice=GAS_PRICE
+        )
 
     receipt = await ERC20.fns.approve(spender_addr, approve_amount).transact(
         w3, ACCOUNTS["community"], to=token, gasPrice=GAS_PRICE
@@ -221,6 +203,7 @@ async def test_erc20_approve_and_transfer_from(mantra):
     owner_before = await ERC20.fns.balanceOf(owner).call(w3, to=token)
     recipient_before = await ERC20.fns.balanceOf(recipient).call(w3, to=token)
 
+    # transfer with allowance should succeed
     receipt = await retry_on_nonce_mismatch(
         ERC20.fns.transferFrom(owner, recipient, transfer_amount).transact,
         w3,
@@ -240,74 +223,24 @@ async def test_erc20_approve_and_transfer_from(mantra):
     assert allowance_after == approve_amount - transfer_amount
 
 
-async def test_erc20_transfer_from_without_allowance_fails(mantra):
-    w3 = mantra.async_w3
-    token, _ = await deploy_erc20_wrapper(w3)
-
-    owner = ADDRS["community"]
-    spender = ACCOUNTS["signer2"]  # has no allowance
-    recipient = ADDRS["validator"]
-    transfer_amount = 5_000
-
-    with pytest.raises(web3.exceptions.ContractLogicError):
-        await ERC20.fns.transferFrom(owner, recipient, transfer_amount).transact(
-            w3, spender, to=token, gasPrice=GAS_PRICE
-        )
-
-
-async def test_transfer_event(mantra):
+async def test_erc20_events(mantra):
     w3 = mantra.async_w3
     token, _ = await deploy_erc20_wrapper(w3)
 
     sender = ADDRS["community"]
     recipient = ADDRS["validator"]
-    amount = 1_000
-
-    receipt = await ERC20.fns.transfer(recipient, amount).transact(
-        w3, ACCOUNTS["community"], to=token, gasPrice=GAS_PRICE
-    )
-
-    transfer_logs = [
-        log
-        for log in receipt.logs
-        if log.topics[0].hex() == ERC20.events.Transfer.topic.hex()
-    ]
-    assert len(transfer_logs) == 1
-
-    transfer_log = transfer_logs[0]
-    from_addr = to_checksum_address("0x" + transfer_log.topics[1].hex()[-40:])
-    to_addr = to_checksum_address("0x" + transfer_log.topics[2].hex()[-40:])
-    logged_amount = int.from_bytes(transfer_log.data, "big")
-
-    assert from_addr == sender
-    assert to_addr == recipient
-    assert logged_amount == amount
-
-
-async def test_approval_event(mantra):
-    w3 = mantra.async_w3
-    token, _ = await deploy_erc20_wrapper(w3)
-
-    owner = ADDRS["community"]
     spender = ADDRS["signer1"]
-    amount = 5_000
+    transfer_amount = 1_000
+    approve_amount = 5_000
 
-    receipt = await ERC20.fns.approve(spender, amount).transact(
+    receipt = await ERC20.fns.transfer(recipient, transfer_amount).transact(
         w3, ACCOUNTS["community"], to=token, gasPrice=GAS_PRICE
     )
+    assert_erc20_event(
+        receipt, ERC20.events.Transfer, sender, recipient, transfer_amount
+    )
 
-    approval_logs = [
-        log
-        for log in receipt.logs
-        if log.topics[0].hex() == ERC20.events.Approval.topic.hex()
-    ]
-    assert len(approval_logs) == 1
-
-    approval_log = approval_logs[0]
-    owner_addr = to_checksum_address("0x" + approval_log.topics[1].hex()[-40:])
-    spender_addr = to_checksum_address("0x" + approval_log.topics[2].hex()[-40:])
-    logged_amount = int.from_bytes(approval_log.data, "big")
-
-    assert owner_addr == owner
-    assert spender_addr == spender
-    assert logged_amount == amount
+    receipt = await ERC20.fns.approve(spender, approve_amount).transact(
+        w3, ACCOUNTS["community"], to=token, gasPrice=GAS_PRICE
+    )
+    assert_erc20_event(receipt, ERC20.events.Approval, sender, spender, approve_amount)
